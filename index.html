@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>de alruck</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #1a1a2e;
+            color: white;
+            padding: 12px 16px;
+            height: 56px;
+            flex-shrink: 0;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 4px;
+        }
+
+        .menu-btn span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: white;
+            border-radius: 2px;
+        }
+
+        .brand {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #e0c97f;
+        }
+
+        .login-btn {
+            background: #e0c97f;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 16px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .login-btn.logged-in {
+            background: #4caf50;
+            color: white;
+        }
+
+        /* ===== CALENDAR SECTION ===== */
+        .calendar-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            overflow: hidden;
+        }
+
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px 8px;
+        }
+
+        .cal-nav-btn {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: #1a1a2e;
+            padding: 4px 10px;
+            line-height: 1;
+        }
+
+        .cal-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .calendar-grid {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0 6px;
+        }
+
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            margin-bottom: 2px;
+        }
+
+        .weekday {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+            padding: 4px 0;
+        }
+
+        .weekday:first-child { color: #e53935; }
+        .weekday:last-child { color: #1565c0; }
+
+        .days-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+        }
+
+        .day-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 3px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        .day-cell:active { background: #f5f5f5; }
+
+        .day-num {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .day-cell.empty { cursor: default; }
+        .day-cell.empty:active { background: none; }
+
+        .day-cell.today .day-num {
+            background: #1a1a2e;
+            color: white;
+            font-weight: 700;
+        }
+
+        .day-cell.selected:not(.today) .day-num {
+            background: #e0c97f;
+            color: #1a1a2e;
+            font-weight: 700;
+        }
+
+        .day-cell.today.selected .day-num {
+            background: #e0c97f;
+            color: #1a1a2e;
+        }
+
+        .day-cell.sunday .day-num { color: #e53935; }
+        .day-cell.saturday .day-num { color: #1565c0; }
+        .day-cell.other-month .day-num { color: #ccc; }
+
+        .day-cell.sunday.today .day-num,
+        .day-cell.saturday.today .day-num,
+        .day-cell.sunday.selected .day-num,
+        .day-cell.saturday.selected .day-num {
+            color: #1a1a2e;
+        }
+
+        .memo-dots {
+            display: flex;
+            gap: 2px;
+            margin-top: 2px;
+        }
+
+        .memo-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #e0c97f;
+        }
+
+        /* ===== FOOTER ===== */
+        footer {
+            background: white;
+            border-top: 1px solid #eee;
+            padding: 12px 16px;
+            flex-shrink: 0;
+        }
+
+        .add-memo-btn {
+            width: 100%;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .add-memo-btn:active { background: #2d2d4e; }
+
+        /* ===== MEMO POPUP ===== */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            align-items: flex-end;
+        }
+
+        .overlay.active { display: flex; }
+
+        .popup {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            padding: 20px 20px 40px;
+            animation: slideUp 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .popup-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .popup-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .popup-close {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
+            display: block;
+            font-weight: 500;
+        }
+
+        .date-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .date-row .form-group { flex: 1; }
+
+        .form-input {
+            width: 100%;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            color: #1a1a2e;
+            outline: none;
+            background: #fafafa;
+        }
+
+        .form-input:focus {
+            border-color: #e0c97f;
+            background: white;
+        }
+
+        textarea.form-input {
+            min-height: 90px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .alarm-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #fafafa;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .alarm-label {
+            font-size: 14px;
+            color: #1a1a2e;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle input { opacity: 0; width: 0; height: 0; }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: #ccc;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle input:checked + .toggle-slider { background: #e0c97f; }
+        .toggle input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+        .alarm-time-input {
+            display: none;
+            margin-top: 8px;
+            width: 100%;
+            border: 1.5px solid #e0c97f;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            background: white;
+        }
+
+        .save-btn {
+            width: 100%;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .save-btn:active { background: #2d2d4e; }
+
+        /* ===== LOGIN MODAL ===== */
+        .login-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-overlay.active { display: flex; }
+
+        .login-modal {
+            background: white;
+            border-radius: 20px;
+            padding: 28px 24px;
+            width: 88%;
+            max-width: 360px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .login-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .login-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #1a1a2e;
+        }
+
+        .login-close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #888;
+            line-height: 1;
+        }
+
+        .login-brand {
+            color: #e0c97f;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .login-input {
+            width: 100%;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 15px;
+            outline: none;
+            margin-bottom: 12px;
+            font-family: inherit;
+        }
+
+        .login-input:focus { border-color: #1a1a2e; }
+
+        .login-submit {
+            width: 100%;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 13px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .login-submit:active { background: #2d2d4e; }
+
+        .login-hint {
+            text-align: center;
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 12px;
+        }
+
+        /* ===== MENU DRAWER ===== */
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 150;
+        }
+
+        .menu-overlay.active { display: block; }
+
+        .menu-drawer {
+            position: fixed;
+            top: 0;
+            left: -260px;
+            width: 260px;
+            height: 100%;
+            background: #1a1a2e;
+            z-index: 151;
+            transition: left 0.3s ease;
+            padding: 60px 20px 20px;
+        }
+
+        .menu-drawer.open { left: 0; }
+
+        .menu-drawer-brand {
+            color: #e0c97f;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 32px;
+            letter-spacing: 1px;
+        }
+
+        .menu-items {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .menu-items li a {
+            display: block;
+            color: #ccc;
+            text-decoration: none;
+            padding: 12px 10px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .menu-items li a:active {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 26, 46, 0.92);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 300;
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+    <button class="menu-btn" onclick="openMenu()" aria-label="메뉴">
+        <span></span><span></span><span></span>
+    </button>
+    <span class="brand">de alruck</span>
+    <button class="login-btn" id="loginBtn" onclick="openLogin()">로그인</button>
+</header>
+
+<!-- ===== CALENDAR ===== -->
+<div class="calendar-section">
+    <div class="calendar-nav">
+        <button class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="이전 달">&#8249;</button>
+        <span class="cal-title" id="calTitle"></span>
+        <button class="cal-nav-btn" onclick="changeMonth(1)" aria-label="다음 달">&#8250;</button>
+    </div>
+    <div class="calendar-grid">
+        <div class="weekdays">
+            <div class="weekday">일</div>
+            <div class="weekday">월</div>
+            <div class="weekday">화</div>
+            <div class="weekday">수</div>
+            <div class="weekday">목</div>
+            <div class="weekday">금</div>
+            <div class="weekday">토</div>
+        </div>
+        <div class="days-grid" id="daysGrid"></div>
+    </div>
+</div>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+    <button class="add-memo-btn" onclick="openMemoPopup()">
+        ✏️ <span id="selectedDateLabel">오늘에 메모 작성</span>
+    </button>
+</footer>
+
+<!-- ===== MEMO POPUP ===== -->
+<div class="overlay" id="memoOverlay" onclick="closeMemoOnBg(event)">
+    <div class="popup">
+        <div class="popup-header">
+            <span class="popup-title">메모 작성</span>
+            <button class="popup-close" onclick="closeMemo()">✕</button>
+        </div>
+        <div class="date-row">
+            <div class="form-group">
+                <label class="form-label">시작 일자</label>
+                <input type="date" class="form-input" id="startDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">종료 일자</label>
+                <input type="date" class="form-input" id="endDate">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">메모</label>
+            <textarea class="form-input" id="memoText" placeholder="내용을 입력하세요..."></textarea>
+        </div>
+        <div class="form-group">
+            <div class="alarm-row">
+                <span class="alarm-label">🔔 알람 설정</span>
+                <label class="toggle">
+                    <input type="checkbox" id="alarmToggle" onchange="toggleAlarm()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <input type="datetime-local" class="alarm-time-input" id="alarmTime">
+        </div>
+        <button class="save-btn" onclick="saveMemo()">저장</button>
+    </div>
+</div>
+
+<!-- ===== LOGIN MODAL ===== -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-modal">
+        <div class="login-header">
+            <div class="login-title">로그인</div>
+            <button class="login-close-btn" onclick="closeLogin()">✕</button>
+        </div>
+        <div class="login-brand">de alruck</div>
+        <input type="text" class="login-input" id="loginId" placeholder="아이디" autocomplete="username">
+        <input type="password" class="login-input" id="loginPw" placeholder="비밀번호" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') doLogin()">
+        <button class="login-submit" onclick="doLogin()">로그인</button>
+        <div class="login-hint">테스트 계정: admin / 1234</div>
+    </div>
+</div>
+
+<!-- ===== MENU DRAWER ===== -->
+<div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+<div class="menu-drawer" id="menuDrawer">
+    <div class="menu-drawer-brand">de alruck</div>
+    <ul class="menu-items">
+        <li><a href="#">홈</a></li>
+        <li><a href="#">캘린더</a></li>
+        <li><a href="#">메모 목록</a></li>
+        <li><a href="#">알림</a></li>
+        <li><a href="#">설정</a></li>
+    </ul>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast"></div>
+
+<script>
+    // ===== STATE =====
+    const today = new Date();
+    let currentYear = today.getFullYear();
+    let currentMonth = today.getMonth();
+    let selectedDate = new Date(today);
+    let memos = JSON.parse(localStorage.getItem('dealruck_memos') || '{}');
+    let isLoggedIn = false;
+
+    // ===== HELPERS =====
+    function formatDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ===== CALENDAR =====
+    function renderCalendar() {
+        const title = document.getElementById('calTitle');
+        const grid = document.getElementById('daysGrid');
+
+        title.textContent = `${currentYear}년 ${currentMonth + 1}월`;
+        grid.innerHTML = '';
+
+        const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+        const todayStr = formatDate(today);
+        const selectedStr = formatDate(selectedDate);
+
+        // 이전 달 빈칸
+        for (let i = firstDay - 1; i >= 0; i--) {
+            const d = daysInPrevMonth - i;
+            grid.appendChild(createDayCell(d, currentYear, currentMonth - 1, true, todayStr, selectedStr));
+        }
+
+        // 이번 달
+        for (let d = 1; d <= daysInMonth; d++) {
+            grid.appendChild(createDayCell(d, currentYear, currentMonth, false, todayStr, selectedStr));
+        }
+
+        // 다음 달 빈칸
+        const total = grid.children.length;
+        const remaining = total <= 35 ? 35 - total : 42 - total;
+        for (let d = 1; d <= remaining; d++) {
+            grid.appendChild(createDayCell(d, currentYear, currentMonth + 1, true, todayStr, selectedStr));
+        }
+    }
+
+    function createDayCell(day, year, month, otherMonth, todayStr, selectedStr) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+
+        const realDate = new Date(year, month, day);
+        const dateStr = formatDate(realDate);
+        const dow = realDate.getDay();
+
+        if (otherMonth) cell.classList.add('other-month', 'empty');
+        if (!otherMonth && dateStr === todayStr) cell.classList.add('today');
+        if (dateStr === selectedStr) cell.classList.add('selected');
+        if (dow === 0 && !otherMonth) cell.classList.add('sunday');
+        if (dow === 6 && !otherMonth) cell.classList.add('saturday');
+
+        const numEl = document.createElement('div');
+        numEl.className = 'day-num';
+        numEl.textContent = day;
+        cell.appendChild(numEl);
+
+        // 메모 점 표시
+        if (!otherMonth && memos[dateStr] && memos[dateStr].length > 0) {
+            const dots = document.createElement('div');
+            dots.className = 'memo-dots';
+            const count = Math.min(memos[dateStr].length, 3);
+            for (let i = 0; i < count; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'memo-dot';
+                dots.appendChild(dot);
+            }
+            cell.appendChild(dots);
+        }
+
+        if (!otherMonth) {
+            cell.onclick = () => selectDate(realDate);
+        }
+
+        return cell;
+    }
+
+    function selectDate(date) {
+        selectedDate = date;
+        updateFooterLabel();
+        renderCalendar();
+    }
+
+    function changeMonth(dir) {
+        currentMonth += dir;
+        if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        renderCalendar();
+    }
+
+    function updateFooterLabel() {
+        const label = document.getElementById('selectedDateLabel');
+        const isToday = formatDate(selectedDate) === formatDate(today);
+        if (isToday) {
+            label.textContent = '오늘에 메모 작성';
+        } else {
+            label.textContent = `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일에 메모 작성`;
+        }
+    }
+
+    // ===== MEMO POPUP =====
+    function openMemoPopup() {
+        if (!isLoggedIn) {
+            showToast('로그인 후 이용해주세요.');
+            openLogin();
+            return;
+        }
+        const dateStr = formatDate(selectedDate);
+        document.getElementById('startDate').value = dateStr;
+        document.getElementById('endDate').value = dateStr;
+        document.getElementById('memoText').value = '';
+        document.getElementById('alarmToggle').checked = false;
+        document.getElementById('alarmTime').style.display = 'none';
+        document.getElementById('alarmTime').value = '';
+        document.getElementById('memoOverlay').classList.add('active');
+    }
+
+    function closeMemo() {
+        document.getElementById('memoOverlay').classList.remove('active');
+    }
+
+    function closeMemoOnBg(e) {
+        if (e.target === document.getElementById('memoOverlay')) closeMemo();
+    }
+
+    function toggleAlarm() {
+        const on = document.getElementById('alarmToggle').checked;
+        const timeInput = document.getElementById('alarmTime');
+        timeInput.style.display = on ? 'block' : 'none';
+        if (on) {
+            const d = new Date(selectedDate);
+            timeInput.value = `${formatDate(d)}T09:00`;
+        }
+    }
+
+    function saveMemo() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const text = document.getElementById('memoText').value.trim();
+        const alarmOn = document.getElementById('alarmToggle').checked;
+        const alarmTime = document.getElementById('alarmTime').value;
+
+        if (!text) { showToast('메모 내용을 입력해주세요.'); return; }
+        if (startDate > endDate) { showToast('종료일은 시작일 이후여야 합니다.'); return; }
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const key = formatDate(d);
+            if (!memos[key]) memos[key] = [];
+            memos[key].push({
+                text,
+                alarm: alarmOn ? alarmTime : null,
+                startDate,
+                endDate,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        localStorage.setItem('dealruck_memos', JSON.stringify(memos));
+        closeMemo();
+        renderCalendar();
+        showToast('메모가 저장되었습니다!');
+    }
+
+    // ===== LOGIN =====
+    function openLogin() {
+        document.getElementById('loginId').value = '';
+        document.getElementById('loginPw').value = '';
+        document.getElementById('loginOverlay').classList.add('active');
+        setTimeout(() => document.getElementById('loginId').focus(), 300);
+    }
+
+    function closeLogin() {
+        document.getElementById('loginOverlay').classList.remove('active');
+    }
+
+    function doLogin() {
+        const id = document.getElementById('loginId').value.trim();
+        const pw = document.getElementById('loginPw').value;
+
+        if (id === 'admin' && pw === '1234') {
+            isLoggedIn = true;
+            const btn = document.getElementById('loginBtn');
+            btn.textContent = '로그아웃';
+            btn.classList.add('logged-in');
+            btn.onclick = doLogout;
+            closeLogin();
+            showToast('로그인 되었습니다.');
+        } else {
+            showToast('아이디 또는 비밀번호를 확인해주세요.');
+        }
+    }
+
+    function doLogout() {
+        isLoggedIn = false;
+        const btn = document.getElementById('loginBtn');
+        btn.textContent = '로그인';
+        btn.classList.remove('logged-in');
+        btn.onclick = openLogin;
+        showToast('로그아웃 되었습니다.');
+    }
+
+    // ===== MENU =====
+    function openMenu() {
+        document.getElementById('menuDrawer').classList.add('open');
+        document.getElementById('menuOverlay').classList.add('active');
+    }
+
+    function closeMenu() {
+        document.getElementById('menuDrawer').classList.remove('open');
+        document.getElementById('menuOverlay').classList.remove('active');
+    }
+
+    // ===== INIT =====
+    updateFooterLabel();
+    renderCalendar();
+</script>
+</body>
+</html>
