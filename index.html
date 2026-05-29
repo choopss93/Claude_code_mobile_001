@@ -41,7 +41,8 @@ header{
   width:40px;height:40px;display:flex;align-items:center;justify-content:center;
   border-radius:50%;padding:0;position:relative;
 }
-.icon-btn:active{background:rgba(255,255,255,0.1)}
+.icon-btn:active{background:rgba(255,255,255,0.1);transform:scale(0.9)}
+.icon-btn{transition:transform 0.1s,-webkit-tap-highlight-color 0s}
 .hamburger{display:flex;flex-direction:column;gap:5px;padding:4px}
 .hamburger span{display:block;width:22px;height:2px;background:var(--white);border-radius:2px}
 .bell-icon{font-size:22px;line-height:1}
@@ -87,9 +88,10 @@ header{
 .day{
   display:flex;flex-direction:column;align-items:center;
   padding-top:3px;cursor:pointer;border-radius:8px;
-  transition:background 0.15s;
+  transition:background 0.15s,transform 0.1s;
+  -webkit-tap-highlight-color:transparent;
 }
-.day:active{background:var(--bg)}
+.day:active{background:var(--bg);transform:scale(0.92)}
 .day.empty{cursor:default;pointer-events:none}
 .day-num{
   width:30px;height:30px;display:flex;align-items:center;justify-content:center;
@@ -132,9 +134,10 @@ header{
   color:rgba(255,255,255,0.8);text-decoration:none;
   padding:13px 12px;border-radius:10px;font-size:15px;
   cursor:pointer;text-align:left;font-family:inherit;
-  transition:background 0.15s;
+  transition:background 0.15s,transform 0.1s;
+  -webkit-tap-highlight-color:transparent;
 }
-.menu-item-btn:active{background:rgba(255,255,255,0.1);color:var(--white)}
+.menu-item-btn:active{background:rgba(255,255,255,0.12);color:var(--white);transform:scale(0.97)}
 .menu-item-icon{font-size:18px;width:24px;text-align:center}
 
 /* TIME SETTING MODAL */
@@ -167,13 +170,40 @@ header{
   flex:1;padding:13px;border:2px solid var(--border);
   background:none;border-radius:12px;font-size:15px;
   color:var(--sub);cursor:pointer;font-weight:600;font-family:inherit;
+  transition:transform 0.1s,opacity 0.1s;
+  -webkit-tap-highlight-color:transparent;
 }
+.btn-cancel:active{transform:scale(0.95);opacity:0.7}
 .btn-save{
   flex:2;padding:13px;background:var(--navy);
   border:none;border-radius:12px;font-size:15px;
   color:var(--white);cursor:pointer;font-weight:700;font-family:inherit;
+  transition:transform 0.1s,background 0.15s;
+  -webkit-tap-highlight-color:transparent;
 }
-.btn-save:active{background:#2d2d4e}
+.btn-save:active{transform:scale(0.95);background:#2d2d4e}
+
+/* SAVE SUCCESS POPUP */
+.success-popup{
+  display:none;position:fixed;inset:0;
+  z-index:500;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.success-popup.show{display:flex}
+.success-card{
+  background:var(--white);border-radius:24px;
+  padding:32px 28px;text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,0.18);
+  animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  min-width:200px;
+}
+@keyframes popIn{
+  from{opacity:0;transform:scale(0.7)}
+  to{opacity:1;transform:scale(1)}
+}
+.success-icon{font-size:48px;margin-bottom:12px;display:block}
+.success-title{font-size:16px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.success-time{font-size:22px;font-weight:800;color:var(--gold)}
 
 /* NOTIFICATION DROPDOWN */
 .notif-panel{
@@ -254,7 +284,9 @@ header{
   border-radius:20px;font-size:13px;font-weight:600;color:var(--sub);
   cursor:pointer;margin-right:8px;font-family:inherit;
   transition:all 0.15s;
+  -webkit-tap-highlight-color:transparent;
 }
+.tab-btn:active{transform:scale(0.94)}
 .tab-btn.active{color:var(--white);font-weight:700}
 .tab-btn[data-cat="trend"].active{background:var(--trend)}
 .tab-btn[data-cat="social"].active{background:var(--social)}
@@ -391,6 +423,15 @@ header{
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- SUCCESS POPUP -->
+<div class="success-popup" id="successPopup">
+  <div class="success-card">
+    <span class="success-icon">✅</span>
+    <div class="success-title">알림 시간 저장됨</div>
+    <div class="success-time" id="successTime"></div>
+  </div>
+</div>
 
 <script>
 // ===== STATE =====
@@ -856,10 +897,27 @@ function saveTime() {
 
   const hh = S.settings.hour;
   const mm = String(S.settings.minute).padStart(2,'0');
-  toast(`오전 ${hh}시 ${mm}분으로 저장됐습니다.`);
   closeTimeModal();
+  showSuccessPopup(`오전 ${hh}시 ${mm}분`);
 
   try { checkNotification(); } catch(e) {}
+}
+
+// ===== SUCCESS POPUP =====
+function showSuccessPopup(timeStr) {
+  const popup = document.getElementById('successPopup');
+  document.getElementById('successTime').textContent = timeStr;
+  popup.classList.add('show');
+  clearTimeout(popup._t);
+  popup._t = setTimeout(() => {
+    popup.style.opacity = '0';
+    popup.style.transition = 'opacity 0.3s';
+    setTimeout(() => {
+      popup.classList.remove('show');
+      popup.style.opacity = '';
+      popup.style.transition = '';
+    }, 300);
+  }, 1800);
 }
 
 // ===== SWIPE TO CLOSE =====
