@@ -567,26 +567,20 @@ function initSelects() {
 async function loadNewsData() {
   setLoading(true);
   try {
+    const res = await fetch('./news_data.json?v=' + Date.now());
+    if (res.ok) S.newsData = await res.json();
     const cached = localStorage.getItem('nbr_news_cache');
-    const cacheDate = localStorage.getItem('nbr_news_cache_date');
-    const todayStr = fmt(S.today);
-
-    if (cached && cacheDate === todayStr) {
-      S.newsData = JSON.parse(cached);
-      setLoading(false);
-      tryFetchRSS();
-      return;
+    if (cached) {
+      try {
+        const cachedData = JSON.parse(cached);
+        Object.keys(cachedData).forEach(date => {
+          if (!S.newsData[date]) S.newsData[date] = cachedData[date];
+        });
+      } catch(e) {}
     }
-
-    const res = await fetch('./news_data.json');
-    if (res.ok) {
-      S.newsData = await res.json();
-      setLoading(false);
-      tryFetchRSS();
-    }
-  } catch(e) {
-    setLoading(false);
-  }
+  } catch(e) {}
+  setLoading(false);
+  tryFetchRSS();
 }
 
 function setLoading(on) {
