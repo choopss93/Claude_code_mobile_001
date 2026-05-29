@@ -292,7 +292,49 @@ header{
 .tab-btn[data-cat="social"].active{background:var(--social)}
 .tab-btn[data-cat="it"].active{background:var(--it)}
 .tab-btn[data-cat="global"].active{background:var(--global)}
-.news-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 32px}
+.news-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 16px 40px}
+
+/* ACCORDION */
+.news-section{margin-bottom:14px}
+.news-section-hd{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;border-radius:10px;margin-bottom:2px;
+}
+.news-section-icon{font-size:15px}
+.news-section-label{font-size:13px;font-weight:800;color:var(--white)}
+.acc-item{border-bottom:1px solid var(--border)}
+.acc-item:last-child{border-bottom:none}
+.acc-title{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 2px;cursor:pointer;gap:12px;
+  -webkit-tap-highlight-color:transparent;
+  transition:opacity 0.1s;
+}
+.acc-title:active{opacity:0.5}
+.acc-title-text{font-size:14px;font-weight:600;color:var(--navy);line-height:1.45;flex:1}
+.acc-arrow{
+  font-size:20px;color:#bbb;flex-shrink:0;line-height:1;
+  transition:transform 0.22s cubic-bezier(0.4,0,0.2,1),color 0.2s;
+  font-weight:300;
+}
+.acc-arrow.open{transform:rotate(90deg);color:var(--navy)}
+.acc-body{
+  max-height:0;overflow:hidden;
+  transition:max-height 0.3s cubic-bezier(0.4,0,0.2,1),opacity 0.25s;
+  opacity:0;
+}
+.acc-body.open{max-height:400px;opacity:1}
+.acc-summary{
+  font-size:13.5px;color:#444;line-height:1.75;
+  padding-bottom:4px;word-break:keep-all;
+}
+.acc-summary b{color:var(--navy);font-weight:700}
+.acc-source{
+  font-size:11px;color:#aaa;
+  margin-top:6px;margin-bottom:14px;
+  text-align:right;
+}
+
 .news-card{
   background:var(--bg);border-radius:14px;
   padding:14px;margin-bottom:10px;
@@ -411,12 +453,6 @@ header{
     <div class="news-head">
       <span class="news-date-title" id="newsDateTitle"></span>
       <button class="news-close" onclick="closeNews()">✕</button>
-    </div>
-    <div class="news-tabs" id="newsTabs">
-      <button class="tab-btn active" data-cat="trend" onclick="switchTab('trend')">🔥 트렌드</button>
-      <button class="tab-btn" data-cat="social" onclick="switchTab('social')">💰 사회/경제</button>
-      <button class="tab-btn" data-cat="it" onclick="switchTab('it')">💻 IT</button>
-      <button class="tab-btn" data-cat="global" onclick="switchTab('global')">🌍 해외뉴스</button>
     </div>
     <div class="news-content" id="newsContent"></div>
   </div>
@@ -808,10 +844,8 @@ async function requestNotifPermission() {
 // ===== NEWS POPUP =====
 function openNews(dateStr) {
   S.currentNewsDate = dateStr;
-  S.currentTab = 'trend';
   document.getElementById('newsDateTitle').textContent = fmtDisplay(dateStr);
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === 'trend'));
-  renderNewsContent('trend');
+  renderNewsContent();
   document.getElementById('newsBg').classList.add('open');
 }
 
@@ -827,13 +861,7 @@ function closeNewsOnBg(e) {
   if (e.target === document.getElementById('newsBg')) closeNews();
 }
 
-function switchTab(cat) {
-  S.currentTab = cat;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
-  renderNewsContent(cat);
-}
-
-function renderNewsContent(cat) {
+function renderNewsContent() {
   const content = document.getElementById('newsContent');
   const data = S.newsData[S.currentNewsDate];
 
@@ -842,22 +870,56 @@ function renderNewsContent(cat) {
     return;
   }
 
-  const articles = data[cat] || [];
-  if (articles.length === 0) {
-    content.innerHTML = '<div class="no-news">이 카테고리의 뉴스가 없습니다.</div>';
-    return;
-  }
+  const cats = ['trend','social','it','global'];
+  let html = '';
 
-  const meta = CAT_META[cat];
-  content.innerHTML = articles.map(a => `
-    <div class="news-card">
-      <div class="news-card-cat" style="background:${meta.color}">${meta.icon} ${meta.label}</div>
-      <div class="news-card-title">${a.title}</div>
-      <div class="news-card-summary">${a.summary}</div>
-      <div class="news-card-source">출처: ${a.source}</div>
-    </div>
-  `).join('');
+  cats.forEach(cat => {
+    const articles = data[cat] || [];
+    if (!articles.length) return;
+    const m = CAT_META[cat];
+    html += `<div class="news-section">
+      <div class="news-section-hd" style="background:${m.color}">
+        <span class="news-section-icon">${m.icon}</span>
+        <span class="news-section-label">${m.label}</span>
+      </div>`;
+    articles.forEach((a, i) => {
+      const id = `${cat}_${i}`;
+      html += `
+      <div class="acc-item">
+        <div class="acc-title" onclick="toggleAcc('${id}')">
+          <span class="acc-title-text">${a.title}</span>
+          <span class="acc-arrow" id="arrow_${id}">›</span>
+        </div>
+        <div class="acc-body" id="body_${id}">
+          <p class="acc-summary">${formatSummary(a.summary)}</p>
+          <div class="acc-source">출처 · ${a.source}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  content.innerHTML = html || '<div class="no-news">뉴스 데이터가 없습니다.</div>';
   content.scrollTop = 0;
+}
+
+function formatSummary(text) {
+  // Bold numbers and key phrases for readability
+  return text
+    .replace(/(\d+\.?\d*[%억만조원명개])/g, '<b>$1</b>')
+    .replace(/(전년 대비|전월 대비|역대 최고|역대 최저|처음으로|공식 발표|잠정 합의)/g, '<b>$1</b>');
+}
+
+function toggleAcc(id) {
+  const body = document.getElementById(`body_${id}`);
+  const arrow = document.getElementById(`arrow_${id}`);
+  const isOpen = body.classList.contains('open');
+  document.querySelectorAll('.acc-body.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.acc-arrow.open').forEach(a => a.classList.remove('open'));
+  if (!isOpen) {
+    body.classList.add('open');
+    arrow.classList.add('open');
+  }
 }
 
 // ===== MENU =====
