@@ -665,10 +665,10 @@ function checkNotification() {
     saveNotifState();
     updateDot();
 
-    if (Notification.permission === 'granted') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       const news = S.newsData[todayStr];
       const firstTitle = news?.trend?.[0]?.title || news?.social?.[0]?.title || '오늘의 뉴스를 확인하세요.';
-      new Notification('📰 뉴스 브리핑', { body: firstTitle, tag: 'nbr-' + todayStr });
+      try { new Notification('📰 뉴스 브리핑', { body: firstTitle, tag: 'nbr-' + todayStr }); } catch(e) {}
     }
   }
 
@@ -759,7 +759,7 @@ function markRead(dateStr) {
 }
 
 async function requestNotifPermission() {
-  if (Notification.permission === 'default') {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
     await Notification.requestPermission();
   }
 }
@@ -848,18 +848,18 @@ function saveTime() {
   S.settings.minute = parseInt(document.getElementById('minuteSelect').value);
   localStorage.setItem('nbr_settings', JSON.stringify(S.settings));
 
-  // reset today's delivered flag so new time takes effect
   const todayStr = fmt(S.today);
   if (S.notifState[todayStr]) {
     S.notifState[todayStr].delivered = false;
   }
   saveNotifState();
-  checkNotification();
 
   const hh = S.settings.hour;
   const mm = String(S.settings.minute).padStart(2,'0');
   toast(`오전 ${hh}시 ${mm}분으로 저장됐습니다.`);
   closeTimeModal();
+
+  try { checkNotification(); } catch(e) {}
 }
 
 // ===== SWIPE TO CLOSE =====
