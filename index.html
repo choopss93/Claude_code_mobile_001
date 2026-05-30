@@ -361,9 +361,13 @@ header{
 }
 .acc-summary b{color:var(--navy);font-weight:700}
 .acc-source{
-  font-size:11px;color:#aaa;
-  margin-top:6px;margin-bottom:14px;
-  text-align:right;
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:12px;color:var(--gold);font-weight:600;
+  margin-top:8px;margin-bottom:14px;
+  float:right;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  text-decoration:underline;text-underline-offset:2px;
 }
 
 .news-card{
@@ -664,7 +668,8 @@ async function tryFetchRSS() {
           title: item.querySelector('title')?.textContent?.trim() || '',
           summary: (item.querySelector('description')?.textContent || '')
             .replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 180),
-          source: '연합뉴스'
+          source: '연합뉴스',
+          url: item.getElementsByTagName('link')[0]?.textContent?.trim() || ''
         })).filter(a => a.title);
       } catch(e) {}
     }));
@@ -940,7 +945,7 @@ function renderNewsContent() {
         </div>
         <div class="acc-body" id="body_${id}">
           <p class="acc-summary">${formatSummary(a.summary)}</p>
-          <div class="acc-source">출처 · ${a.source}</div>
+          <div class="acc-source" onclick="openArticle('${encodeURIComponent(a.url||'')}','${encodeURIComponent(a.title||'')}')">🔗 ${a.source}</div>
         </div>
       </div>`;
     });
@@ -949,6 +954,13 @@ function renderNewsContent() {
 
   content.innerHTML = html || '<div class="no-news">뉴스 데이터가 없습니다.</div>';
   content.scrollTop = 0;
+}
+
+function openArticle(encodedUrl, encodedTitle) {
+  const url = decodeURIComponent(encodedUrl);
+  const title = decodeURIComponent(encodedTitle);
+  const target = url || `https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(title)}`;
+  window.open(target, '_blank', 'noopener');
 }
 
 function formatSummary(text) {

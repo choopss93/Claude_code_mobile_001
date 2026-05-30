@@ -46,12 +46,14 @@ def parse_items(xml_data, count=3):
         title = item.findtext('title', '').strip()
         desc = re.sub(r'<[^>]+>', '', item.findtext('description', '')).strip()
         desc = re.sub(r'\s+', ' ', desc)
+        link = item.findtext('link', '').strip()
         if not title:
             continue
         items.append({
             'title': title,
             'summary': desc[:200] if desc else title,
-            'source': '연합뉴스'
+            'source': '연합뉴스',
+            'url': link
         })
     return items
 
