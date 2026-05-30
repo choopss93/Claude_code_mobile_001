@@ -183,6 +183,48 @@ header{
 }
 .btn-save:active{transform:scale(0.95);background:#2d2d4e}
 
+/* TOKEN MODAL */
+.token-modal-bg{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+  z-index:400;align-items:center;justify-content:center;padding:24px;
+}
+.token-modal-bg.open{display:flex}
+.token-modal{
+  background:var(--white);border-radius:20px;padding:28px 24px;
+  width:100%;max-width:340px;
+  animation:fadeIn 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+.token-modal-title{font-size:17px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.token-modal-desc{font-size:12.5px;color:var(--sub);margin-bottom:16px;line-height:1.6}
+.token-modal-desc a{color:var(--gold);text-decoration:none}
+.token-input{
+  width:100%;border:2px solid var(--border);border-radius:10px;
+  padding:11px 12px;font-size:13px;color:var(--navy);
+  background:var(--bg);outline:none;box-sizing:border-box;
+  font-family:monospace;margin-bottom:14px;
+}
+.token-input:focus{border-color:var(--gold)}
+.token-status{font-size:12px;color:#4caf50;font-weight:600;margin-bottom:12px;min-height:18px}
+.token-status.err{color:#e53935}
+.token-btns{display:flex;gap:10px}
+.token-btn-cancel{
+  flex:1;padding:11px;border:2px solid var(--border);background:none;
+  border-radius:10px;font-size:14px;color:var(--sub);cursor:pointer;
+  font-weight:600;font-family:inherit;-webkit-tap-highlight-color:transparent;
+}
+.token-btn-save{
+  flex:2;padding:11px;border:none;background:var(--navy);
+  border-radius:10px;font-size:14px;color:#fff;cursor:pointer;
+  font-weight:700;font-family:inherit;-webkit-tap-highlight-color:transparent;
+  transition:background 0.15s;
+}
+.token-btn-save:active{background:#2d2d4e}
+.token-btn-del{
+  flex:1;padding:11px;border:none;background:#fee;
+  border-radius:10px;font-size:14px;color:#e53935;cursor:pointer;
+  font-weight:600;font-family:inherit;-webkit-tap-highlight-color:transparent;
+}
+
 /* SAVE SUCCESS POPUP */
 .success-popup{
   display:none;position:fixed;inset:0;
@@ -404,6 +446,7 @@ header{
   <ul class="menu-list">
     <li><button class="menu-item-btn" onclick="openTimeModal();closeMenu()"><span class="menu-item-icon">⏰</span>시간 설정</button></li>
     <li><button class="menu-item-btn" onclick="refreshTodayNews();closeMenu()"><span class="menu-item-icon">🔄</span>뉴스 새로고침</button></li>
+    <li><button class="menu-item-btn" id="menuTokenBtn" onclick="openTokenModal();closeMenu()"><span class="menu-item-icon">🔗</span>GitHub 연동</button></li>
   </ul>
 </nav>
 
@@ -444,6 +487,24 @@ header{
       <button class="news-close" onclick="closeNews()">✕</button>
     </div>
     <div class="news-content" id="newsContent"></div>
+  </div>
+</div>
+
+<!-- TOKEN MODAL -->
+<div class="token-modal-bg" id="tokenModalBg" onclick="closeTokenModalBg(event)">
+  <div class="token-modal">
+    <div class="token-modal-title">GitHub 연동</div>
+    <div class="token-modal-desc">
+      Personal Access Token을 입력하면 앱에서 시간을 변경할 때 GitHub의 <b>settings.json</b>이 자동으로 업데이트되어 뉴스 자동 업데이트 시간이 바뀝니다.<br><br>
+      토큰 발급: GitHub → Settings → Developer settings → Fine-grained tokens → <b>Contents: Read and Write</b> 권한만 선택.
+    </div>
+    <div class="token-status" id="tokenStatus"></div>
+    <input class="token-input" id="tokenInput" type="password" placeholder="github_pat_..." autocomplete="off" />
+    <div class="token-btns">
+      <button class="token-btn-cancel" onclick="closeTokenModal()">취소</button>
+      <button class="token-btn-del" id="tokenDelBtn" onclick="deleteToken()" style="display:none">삭제</button>
+      <button class="token-btn-save" onclick="saveToken()">저장</button>
+    </div>
   </div>
 </div>
 
@@ -939,17 +1000,83 @@ function saveTime() {
   localStorage.setItem('nbr_settings', JSON.stringify(S.settings));
 
   const todayStr = fmt(S.today);
-  if (S.notifState[todayStr]) {
-    S.notifState[todayStr].delivered = false;
-  }
+  if (S.notifState[todayStr]) S.notifState[todayStr].delivered = false;
   saveNotifState();
 
   const hh = S.settings.hour;
   const mm = String(S.settings.minute).padStart(2,'0');
   closeTimeModal();
   showSuccessPopup(`오전 ${hh}시 ${mm}분`);
-
   try { checkNotification(); } catch(e) {}
+
+  const token = localStorage.getItem('nbr_gh_token');
+  if (token) updateGithubSettings(S.settings.hour, S.settings.minute, token);
+}
+
+async function updateGithubSettings(hour, minute, token) {
+  const REPO   = 'choopss93/Claude_code_mobile_001';
+  const BRANCH = 'claude/hei-b0N1Z';
+  const API    = `https://api.github.com/repos/${REPO}/contents/settings.json`;
+  try {
+    const r = await fetch(`${API}?ref=${BRANCH}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    const data = await r.json();
+    const content = btoa(JSON.stringify({ hour, minute }) + '\n');
+    await fetch(API, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `뉴스 업데이트 시간 변경: ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`,
+        content,
+        sha: data.sha,
+        branch: BRANCH
+      })
+    });
+  } catch(e) { console.warn('settings.json 업데이트 실패:', e); }
+}
+
+// ===== TOKEN MODAL =====
+function openTokenModal() {
+  const existing = localStorage.getItem('nbr_gh_token');
+  document.getElementById('tokenInput').value = existing ? '••••••••••••••••' : '';
+  document.getElementById('tokenStatus').textContent = existing ? '✅ 연동됨' : '';
+  document.getElementById('tokenStatus').className = 'token-status';
+  document.getElementById('tokenDelBtn').style.display = existing ? '' : 'none';
+  document.getElementById('tokenModalBg').classList.add('open');
+}
+function closeTokenModal() {
+  document.getElementById('tokenModalBg').classList.remove('open');
+}
+function closeTokenModalBg(e) {
+  if (e.target === document.getElementById('tokenModalBg')) closeTokenModal();
+}
+async function saveToken() {
+  const val = document.getElementById('tokenInput').value.trim();
+  const status = document.getElementById('tokenStatus');
+  if (!val || val.startsWith('•')) { closeTokenModal(); return; }
+  status.textContent = '확인 중...';
+  status.className = 'token-status';
+  try {
+    const r = await fetch('https://api.github.com/repos/choopss93/Claude_code_mobile_001/contents/settings.json?ref=claude/hei-b0N1Z', {
+      headers: { Authorization: `token ${val}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!r.ok) throw new Error();
+    localStorage.setItem('nbr_gh_token', val);
+    status.textContent = '✅ 연동 성공!';
+    document.getElementById('tokenDelBtn').style.display = '';
+    setTimeout(closeTokenModal, 1000);
+  } catch(e) {
+    status.textContent = '❌ 토큰이 유효하지 않습니다';
+    status.className = 'token-status err';
+  }
+}
+function deleteToken() {
+  localStorage.removeItem('nbr_gh_token');
+  document.getElementById('tokenInput').value = '';
+  document.getElementById('tokenStatus').textContent = '토큰이 삭제됐습니다.';
+  document.getElementById('tokenDelBtn').style.display = 'none';
+  setTimeout(closeTokenModal, 800);
 }
 
 // ===== SUCCESS POPUP =====

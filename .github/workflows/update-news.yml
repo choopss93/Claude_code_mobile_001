@@ -2,7 +2,7 @@ name: 뉴스 데이터 자동 업데이트
 
 on:
   schedule:
-    - cron: '0 22 * * *'  # 매일 오전 7시 KST (UTC 22:00 전날)
+    - cron: '*/10 * * * *'  # 10분마다 실행, settings.json 시간 기준 10분 전 윈도우에서만 갱신
   workflow_dispatch:
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Fetch news from RSS
+      - name: Fetch news (time-window check inside script)
         run: python scripts/update_news.py
 
       - name: Commit and push if changed
@@ -34,6 +34,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "변경사항 없음"
           else
-            git commit -m "자동 뉴스 업데이트: $(TZ=Asia/Seoul date +%Y-%m-%d)"
+            git commit -m "자동 뉴스 업데이트: $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
             git push origin claude/hei-b0N1Z
           fi

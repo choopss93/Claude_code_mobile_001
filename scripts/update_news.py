@@ -1,11 +1,31 @@
 import json
 import re
+import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
-today = datetime.now(KST).strftime('%Y-%m-%d')
+now_kst = datetime.now(KST)
+today = now_kst.strftime('%Y-%m-%d')
+
+# Read configured time from settings.json
+with open('settings.json', 'r', encoding='utf-8') as f:
+    settings = json.load(f)
+
+configured_hour   = settings.get('hour', 7)
+configured_minute = settings.get('minute', 0)
+
+# Check if current time is within [configured - 10min, configured)
+now_total   = now_kst.hour * 60 + now_kst.minute
+target_total = configured_hour * 60 + configured_minute
+window_start = target_total - 10
+
+if not (window_start <= now_total < target_total):
+    print(f'현재 {now_kst.strftime("%H:%M")} KST — 업데이트 윈도우 아님 (설정: {configured_hour:02d}:{configured_minute:02d})')
+    sys.exit(0)
+
+print(f'업데이트 윈도우 진입 — 뉴스 가져오는 중...')
 
 FEEDS = {
     'trend':  'https://www.yna.co.kr/RSS/entertainment.xml',
@@ -52,7 +72,7 @@ for cat, url in FEEDS.items():
 
 if any(today_data[c] for c in today_data):
     data[today] = today_data
-    cutoff = (datetime.now(KST) - timedelta(days=30)).strftime('%Y-%m-%d')
+    cutoff = (now_kst - timedelta(days=30)).strftime('%Y-%m-%d')
     data = {k: v for k, v in sorted(data.items()) if k >= cutoff}
     with open(data_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
