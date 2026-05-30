@@ -898,7 +898,7 @@ function renderNewsContent() {
 function openArticle(encodedUrl, encodedTitle) {
   const url = decodeURIComponent(encodedUrl);
   const title = decodeURIComponent(encodedTitle);
-  const target = url || `https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(title)}`;
+  const target = url || `https://news.google.com/search?q=${encodeURIComponent(title)}&hl=ko`;
   window.open(target, '_blank', 'noopener');
 }
 
