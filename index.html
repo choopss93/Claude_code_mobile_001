@@ -260,46 +260,28 @@ header{
 .news-sheet{
   background:var(--white);border-radius:20px 20px 0 0;
   width:100%;max-height:92vh;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;
+  position:relative;
   animation:slideUp 0.28s cubic-bezier(0.4,0,0.2,1);
 }
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.news-handle{width:40px;height:4px;background:#ddd;border-radius:2px;margin:10px auto 0}
-.news-head{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 20px 10px;
-  position:sticky;top:0;background:var(--white);z-index:10;
-  border-bottom:1px solid #f0f0f0;
-}
-.news-date-title{font-size:16px;font-weight:800;color:var(--navy)}
+.news-handle{width:40px;height:4px;background:#ddd;border-radius:2px;margin:12px auto 0}
 .news-close{
+  position:absolute;top:14px;right:16px;
   background:#f0f0f0;border:none;border-radius:50%;
-  width:32px;height:32px;font-size:17px;font-weight:700;cursor:pointer;
+  width:34px;height:34px;font-size:17px;font-weight:700;cursor:pointer;
   display:flex;align-items:center;justify-content:center;color:#555;
-  flex-shrink:0;
+  z-index:20;
   -webkit-tap-highlight-color:transparent;
   transition:background 0.15s;
 }
 .news-close:active{background:#ddd}
-.news-tabs{
-  display:flex;gap:0;padding:12px 16px 0;overflow-x:auto;
-  scrollbar-width:none;-ms-overflow-style:none;
+.news-head{
+  padding:10px 60px 12px 20px;
+  border-bottom:1px solid #f0f0f0;flex-shrink:0;
 }
-.news-tabs::-webkit-scrollbar{display:none}
-.tab-btn{
-  flex-shrink:0;padding:8px 14px;border:none;background:var(--bg);
-  border-radius:20px;font-size:13px;font-weight:600;color:var(--sub);
-  cursor:pointer;margin-right:8px;font-family:inherit;
-  transition:all 0.15s;
-  -webkit-tap-highlight-color:transparent;
-}
-.tab-btn:active{transform:scale(0.94)}
-.tab-btn.active{color:var(--white);font-weight:700}
-.tab-btn[data-cat="trend"].active{background:var(--trend)}
-.tab-btn[data-cat="social"].active{background:var(--social)}
-.tab-btn[data-cat="it"].active{background:var(--it)}
-.tab-btn[data-cat="global"].active{background:var(--global)}
-.news-content{padding:8px 16px 40px}
+.news-date-title{font-size:16px;font-weight:800;color:var(--navy)}
+.news-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 16px 40px}
 
 /* ACCORDION */
 .news-section{margin-bottom:14px}
@@ -743,11 +725,15 @@ function checkNotification() {
     saveNotifState();
     updateDot();
 
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    // 설정 시간 도달 시 뉴스 자동 갱신
+    loadNewsData().then(() => {
+      renderCal();
       const news = S.newsData[todayStr];
       const firstTitle = news?.trend?.[0]?.title || news?.social?.[0]?.title || '오늘의 뉴스를 확인하세요.';
-      try { new Notification('📰 뉴스 브리핑', { body: firstTitle, tag: 'nbr-' + todayStr }); } catch(e) {}
-    }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try { new Notification('📰 뉴스 브리핑', { body: firstTitle, tag: 'nbr-' + todayStr }); } catch(e) {}
+      }
+    });
   }
 
   updateDot();
@@ -986,11 +972,12 @@ function showSuccessPopup(timeStr) {
 // ===== SWIPE TO CLOSE =====
 function setupSwipe() {
   const sheet = document.getElementById('newsSheet');
+  const content = document.getElementById('newsContent');
   let startY = 0;
   sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
   sheet.addEventListener('touchend', e => {
     const dy = e.changedTouches[0].clientY - startY;
-    if (dy > 80) closeNews();
+    if (dy > 80 && content.scrollTop === 0) closeNews();
   }, { passive: true });
 }
 
