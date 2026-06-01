@@ -36,4 +36,5 @@ jobs:
           else
             git commit -m "자동 뉴스 업데이트: $(TZ=Asia/Seoul date +%Y-%m-%d\ %H:%M)"
             git push origin claude/hei-b0N1Z
+            git push origin claude/hei-b0N1Z:gh-pages --force
           fi
