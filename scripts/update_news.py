@@ -21,13 +21,12 @@ data_path = 'news_data.json'
 with open(data_path, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
-# Check if today's data already has RSS-fetched articles (has 'url' field)
+# Skip if today already has RSS-fetched articles (has 'url' field)
 today_data = data.get(today, {})
 already_fetched = any(
     any(a.get('url') for a in today_data.get(cat, []))
     for cat in ['trend', 'social', 'it', 'global']
 )
-
 if already_fetched:
     print(f'오늘({today}) RSS 데이터 이미 있음 — 건너뜀')
     sys.exit(0)
@@ -35,41 +34,53 @@ if already_fetched:
 # Only run after the configured time
 now_total    = now_kst.hour * 60 + now_kst.minute
 target_total = configured_hour * 60 + configured_minute
-
 if now_total < target_total:
     print(f'현재 {now_kst.strftime("%H:%M")} KST — 설정 시간({configured_hour:02d}:{configured_minute:02d}) 전 — 건너뜀')
     sys.exit(0)
 
-print(f'뉴스 업데이트 시작 ({now_kst.strftime("%H:%M")} KST, 설정: {configured_hour:02d}:{configured_minute:02d})')
+print(f'뉴스 업데이트 시작 ({now_kst.strftime("%H:%M")} KST)')
 
+# Google News RSS — 연합뉴스 대비 서버 차단 없음
 FEEDS = {
-    'trend':  'https://www.yna.co.kr/RSS/entertainment.xml',
-    'social': 'https://www.yna.co.kr/RSS/economy.xml',
-    'it':     'https://www.yna.co.kr/RSS/it.xml',
-    'global': 'https://www.yna.co.kr/RSS/international.xml',
+    'trend':  'https://news.google.com/rss/search?q=한국+트렌드+이슈&hl=ko&gl=KR&ceid=KR:ko',
+    'social': 'https://news.google.com/rss/search?q=한국+경제+사회&hl=ko&gl=KR&ceid=KR:ko',
+    'it':     'https://news.google.com/rss/search?q=한국+IT+기술+인공지능&hl=ko&gl=KR&ceid=KR:ko',
+    'global': 'https://news.google.com/rss/search?q=국제뉴스+세계&hl=ko&gl=KR&ceid=KR:ko',
+}
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'ko-KR,ko;q=0.9',
 }
 
 def fetch_rss(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=15) as r:
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=20) as r:
         return r.read()
 
 def parse_items(xml_data, count=3):
     root = ET.fromstring(xml_data)
     items = []
-    for item in root.findall('.//item')[:count]:
+    for item in root.findall('.//item')[:count * 3]:  # 넉넉히 가져와서 필터
         title = item.findtext('title', '').strip()
+        # Google News title에서 " - 출처" 분리
+        source = '뉴스'
+        if ' - ' in title:
+            parts = title.rsplit(' - ', 1)
+            title, source = parts[0].strip(), parts[1].strip()
         desc = re.sub(r'<[^>]+>', '', item.findtext('description', '')).strip()
         desc = re.sub(r'\s+', ' ', desc)
         link = item.findtext('link', '').strip()
-        if not title:
+        if not title or len(title) < 5:
             continue
         items.append({
             'title': title,
             'summary': desc[:200] if desc else title,
-            'source': '연합뉴스',
+            'source': source,
             'url': link
         })
+        if len(items) == count:
+            break
     return items
 
 fetched = {}
@@ -83,7 +94,7 @@ for cat, url in FEEDS.items():
         print(f'  {cat}: 실패 - {e}')
         fetched[cat] = today_data.get(cat, [])
 
-if any(fetched[c] for c in fetched):
+if any(fetched.get(c) for c in fetched):
     data[today] = fetched
     cutoff = (now_kst - timedelta(days=30)).strftime('%Y-%m-%d')
     data = {k: v for k, v in sorted(data.items()) if k >= cutoff}
