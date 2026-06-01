@@ -1376,7 +1376,7 @@ async function renderScrapList() {
   if (!currentUser) { listEl.innerHTML = '<div class="scrap-empty">로그인이 필요합니다.</div>'; return; }
   listEl.innerHTML = '<div class="scrap-empty">불러오는 중...</div>';
   try {
-    const snap = await db.collection('users').doc(currentUser.uid).collection('scraps').orderBy('scrappedAt','desc').get();
+    const snap = await db.collection('users').doc(currentUser.uid).collection('scraps').get();
     if (snap.empty) {
       if (countEl) countEl.textContent = '';
       listEl.innerHTML = '<div class="scrap-empty">📌 스크랩한 기사가 없습니다.<br>기사 옆 🔖를 눌러 저장하세요.</div>';
@@ -1394,7 +1394,11 @@ async function renderScrapList() {
     let html = '';
     Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(date => {
       html += `<div class="scrap-date-group"><div class="scrap-date-label">${fmtDisplay(date)}</div>`;
-      groups[date].forEach(a => {
+      groups[date].sort((a,b) => {
+        const ta = a.scrappedAt?.toMillis?.() ?? 0;
+        const tb = b.scrappedAt?.toMillis?.() ?? 0;
+        return tb - ta;
+      }).forEach(a => {
         const color  = catColors[a.category]  || '#bbb';
         const label  = catLabels[a.category] || a.category;
         const encDate  = encodeURIComponent(date);
