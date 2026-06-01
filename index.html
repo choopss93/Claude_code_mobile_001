@@ -583,10 +583,10 @@ function setLoading(on) {
 async function tryFetchRSS() {
   const PROXY = 'https://api.allorigins.win/raw?url=';
   const FEEDS = {
-    trend:  'https://www.yna.co.kr/RSS/entertainment.xml',
-    social: 'https://www.yna.co.kr/RSS/economy.xml',
-    it:     'https://www.yna.co.kr/RSS/it.xml',
-    global: 'https://www.yna.co.kr/RSS/international.xml'
+    trend:  'https://news.google.com/rss/search?q=한국+트렌드+이슈&hl=ko&gl=KR&ceid=KR:ko',
+    social: 'https://news.google.com/rss/search?q=한국+경제+사회&hl=ko&gl=KR&ceid=KR:ko',
+    it:     'https://news.google.com/rss/search?q=한국+IT+기술+인공지능&hl=ko&gl=KR&ceid=KR:ko',
+    global: 'https://news.google.com/rss/search?q=국제뉴스+세계&hl=ko&gl=KR&ceid=KR:ko'
   };
   const todayStr = fmt(S.today);
   const cacheDate = localStorage.getItem('nbr_news_cache_date');
@@ -595,21 +595,38 @@ async function tryFetchRSS() {
   setLoading(true);
   try {
     const result = {};
-    await Promise.all(Object.entries(FEEDS).map(async ([cat, url]) => {
+    await Promise.all(Object.entries(FEEDS).map(async ([cat, feedUrl]) => {
       try {
-        const res = await fetch(PROXY + encodeURIComponent(url));
+        const res = await fetch(PROXY + encodeURIComponent(feedUrl));
         if (!res.ok) return;
         const txt = await res.text();
         const parser = new DOMParser();
         const xml = parser.parseFromString(txt, 'text/xml');
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 3);
-        result[cat] = items.map(item => ({
-          title: item.querySelector('title')?.textContent?.trim() || '',
-          summary: (item.querySelector('description')?.textContent || '')
-            .replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 180),
-          source: '연합뉴스',
-          url: item.getElementsByTagName('link')[0]?.textContent?.trim() || ''
-        })).filter(a => a.title);
+        const items = Array.from(xml.querySelectorAll('item'));
+        const parsed = [];
+        for (const item of items) {
+          if (parsed.length >= 3) break;
+          let title = item.querySelector('title')?.textContent?.trim() || '';
+          let source = 'Google 뉴스';
+          if (title.includes(' - ')) {
+            const parts = title.split(' - ');
+            source = parts.pop().trim();
+            title = parts.join(' - ').trim();
+          }
+          const summary = (item.querySelector('description')?.textContent || '')
+            .replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+          // Google News RSS에서 링크 추출: <link> 태그 또는 nextSibling 방식
+          let articleUrl = '';
+          const linkEls = item.getElementsByTagName('link');
+          for (const el of linkEls) {
+            const txt = (el.textContent || el.getAttribute('href') || '').trim();
+            if (txt.startsWith('http')) { articleUrl = txt; break; }
+          }
+          if (!articleUrl) articleUrl = item.querySelector('guid')?.textContent?.trim() || '';
+          if (!title) continue;
+          parsed.push({ title, summary, source, url: articleUrl });
+        }
+        result[cat] = parsed;
       } catch(e) {}
     }));
 

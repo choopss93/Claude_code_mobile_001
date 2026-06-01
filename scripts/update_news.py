@@ -58,26 +58,42 @@ def fetch_rss(url):
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read()
 
+def get_link(item):
+    # ElementTree에서 <link> 텍스트 추출 (RSS 특수 구조 대응)
+    for el in item:
+        if el.tag == 'link' or el.tag.endswith('}link'):
+            if el.text and el.text.strip().startswith('http'):
+                return el.text.strip()
+    # fallback: findtext
+    link = item.findtext('link', '').strip()
+    if link.startswith('http'):
+        return link
+    # fallback: guid
+    guid = item.findtext('guid', '').strip()
+    if guid.startswith('http'):
+        return guid
+    return ''
+
 def parse_items(xml_data, count=3):
     root = ET.fromstring(xml_data)
     items = []
-    for item in root.findall('.//item')[:count * 3]:  # 넉넉히 가져와서 필터
+    for item in root.findall('.//item'):
         title = item.findtext('title', '').strip()
         # Google News title에서 " - 출처" 분리
-        source = '뉴스'
+        source = 'Google 뉴스'
         if ' - ' in title:
             parts = title.rsplit(' - ', 1)
             title, source = parts[0].strip(), parts[1].strip()
         desc = re.sub(r'<[^>]+>', '', item.findtext('description', '')).strip()
         desc = re.sub(r'\s+', ' ', desc)
-        link = item.findtext('link', '').strip()
+        url = get_link(item)
         if not title or len(title) < 5:
             continue
         items.append({
             'title': title,
             'summary': desc[:200] if desc else title,
             'source': source,
-            'url': link
+            'url': url
         })
         if len(items) == count:
             break
