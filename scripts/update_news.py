@@ -16,16 +16,31 @@ with open('settings.json', 'r', encoding='utf-8') as f:
 configured_hour   = settings.get('hour', 7)
 configured_minute = settings.get('minute', 0)
 
-# Check if current time is within [configured - 10min, configured)
-now_total   = now_kst.hour * 60 + now_kst.minute
-target_total = configured_hour * 60 + configured_minute
-window_start = target_total - 10
+# Read existing news data
+data_path = 'news_data.json'
+with open(data_path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
 
-if not (window_start <= now_total < target_total):
-    print(f'현재 {now_kst.strftime("%H:%M")} KST — 업데이트 윈도우 아님 (설정: {configured_hour:02d}:{configured_minute:02d})')
+# Check if today's data already has RSS-fetched articles (has 'url' field)
+today_data = data.get(today, {})
+already_fetched = any(
+    any(a.get('url') for a in today_data.get(cat, []))
+    for cat in ['trend', 'social', 'it', 'global']
+)
+
+if already_fetched:
+    print(f'오늘({today}) RSS 데이터 이미 있음 — 건너뜀')
     sys.exit(0)
 
-print(f'업데이트 윈도우 진입 — 뉴스 가져오는 중...')
+# Only run after the configured time
+now_total    = now_kst.hour * 60 + now_kst.minute
+target_total = configured_hour * 60 + configured_minute
+
+if now_total < target_total:
+    print(f'현재 {now_kst.strftime("%H:%M")} KST — 설정 시간({configured_hour:02d}:{configured_minute:02d}) 전 — 건너뜀')
+    sys.exit(0)
+
+print(f'뉴스 업데이트 시작 ({now_kst.strftime("%H:%M")} KST, 설정: {configured_hour:02d}:{configured_minute:02d})')
 
 FEEDS = {
     'trend':  'https://www.yna.co.kr/RSS/entertainment.xml',
@@ -57,23 +72,19 @@ def parse_items(xml_data, count=3):
         })
     return items
 
-data_path = 'news_data.json'
-with open(data_path, 'r', encoding='utf-8') as f:
-    data = json.load(f)
-
-today_data = {}
+fetched = {}
 for cat, url in FEEDS.items():
     try:
         xml = fetch_rss(url)
         articles = parse_items(xml, 3)
-        today_data[cat] = articles
+        fetched[cat] = articles
         print(f'  {cat}: {len(articles)}개')
     except Exception as e:
         print(f'  {cat}: 실패 - {e}')
-        today_data[cat] = data.get(today, {}).get(cat, [])
+        fetched[cat] = today_data.get(cat, [])
 
-if any(today_data[c] for c in today_data):
-    data[today] = today_data
+if any(fetched[c] for c in fetched):
+    data[today] = fetched
     cutoff = (now_kst - timedelta(days=30)).strftime('%Y-%m-%d')
     data = {k: v for k, v in sorted(data.items()) if k >= cutoff}
     with open(data_path, 'w', encoding='utf-8') as f:
