@@ -9,6 +9,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="뉴스 브리핑">
 <title>뉴스 브리핑</title>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -365,9 +369,158 @@ header{
   text-align:center;
 }
 .toast.show{opacity:1}
+/* ===== AUTH OVERLAY ===== */
+.auth-overlay{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:var(--navy);
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;
+}
+.auth-overlay.show{display:flex}
+.auth-logo{font-size:32px;font-weight:900;color:var(--gold);letter-spacing:-1px;margin-bottom:4px}
+.auth-tagline{font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:40px}
+.auth-card{
+  background:var(--white);border-radius:24px;padding:28px 24px;
+  width:100%;max-width:360px;
+  animation:fadeIn 0.25s ease;
+}
+.auth-tab-row{display:flex;gap:0;margin-bottom:24px;background:#f0f0f0;border-radius:12px;padding:4px}
+.auth-tab{
+  flex:1;padding:9px;border:none;background:none;border-radius:9px;
+  font-size:14px;font-weight:600;color:var(--sub);cursor:pointer;
+  font-family:inherit;transition:all 0.18s;
+  -webkit-tap-highlight-color:transparent;
+}
+.auth-tab.active{background:var(--white);color:var(--navy);box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+.auth-field{margin-bottom:14px}
+.auth-label{font-size:12px;font-weight:600;color:var(--sub);margin-bottom:5px;display:block}
+.auth-input{
+  width:100%;border:2px solid var(--border);border-radius:10px;
+  padding:12px 14px;font-size:15px;color:var(--navy);
+  background:var(--bg);outline:none;box-sizing:border-box;font-family:inherit;
+}
+.auth-input:focus{border-color:var(--gold)}
+.auth-error{font-size:12px;color:#e53935;margin-top:4px;min-height:16px}
+.auth-btn{
+  width:100%;padding:14px;border:none;border-radius:12px;
+  background:var(--navy);color:#fff;font-size:16px;font-weight:700;
+  cursor:pointer;font-family:inherit;margin-top:6px;
+  transition:background 0.15s,transform 0.1s;
+  -webkit-tap-highlight-color:transparent;
+}
+.auth-btn:active{background:#2d2d4e;transform:scale(0.98)}
+.auth-loading{opacity:0.6;pointer-events:none}
+
+/* ===== MY PAGE MODAL ===== */
+.mypage-bg{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+  z-index:400;align-items:center;justify-content:center;padding:24px;
+}
+.mypage-bg.open{display:flex}
+.mypage-modal{
+  background:var(--white);border-radius:20px;padding:28px 24px;
+  width:100%;max-width:340px;
+  animation:fadeIn 0.2s ease;
+}
+.mypage-title{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:20px}
+.mypage-avatar{
+  width:64px;height:64px;border-radius:50%;background:var(--navy);
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;margin:0 auto 16px;
+}
+.mypage-email{font-size:12px;color:var(--sub);text-align:center;margin-bottom:20px}
+.mypage-field{margin-bottom:14px}
+.mypage-label{font-size:12px;font-weight:600;color:var(--sub);margin-bottom:5px;display:block}
+.mypage-input{
+  width:100%;border:2px solid var(--border);border-radius:10px;
+  padding:11px 14px;font-size:15px;color:var(--navy);
+  background:var(--bg);outline:none;box-sizing:border-box;font-family:inherit;
+}
+.mypage-input:focus{border-color:var(--gold)}
+.mypage-btns{display:flex;gap:10px;margin-top:20px}
+.mypage-cancel{
+  flex:1;padding:12px;border:2px solid var(--border);background:none;
+  border-radius:10px;font-size:14px;color:var(--sub);cursor:pointer;
+  font-weight:600;font-family:inherit;-webkit-tap-highlight-color:transparent;
+}
+.mypage-save{
+  flex:2;padding:12px;border:none;background:var(--navy);
+  border-radius:10px;font-size:14px;color:#fff;cursor:pointer;
+  font-weight:700;font-family:inherit;-webkit-tap-highlight-color:transparent;
+  transition:background 0.15s;
+}
+.mypage-save:active{background:#2d2d4e}
+.mypage-logout{
+  width:100%;padding:12px;border:none;background:#fee;
+  border-radius:10px;font-size:14px;color:#e53935;cursor:pointer;
+  font-weight:600;font-family:inherit;margin-top:10px;
+  -webkit-tap-highlight-color:transparent;
+}
 </style>
 </head>
 <body>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-overlay show" id="authOverlay">
+  <div class="auth-logo">📰 뉴스 브리핑</div>
+  <div class="auth-tagline">매일 아침 뉴스를 한눈에</div>
+  <div class="auth-card">
+    <div class="auth-tab-row">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">로그인</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">회원가입</button>
+    </div>
+
+    <!-- 로그인 -->
+    <div id="loginForm">
+      <div class="auth-field">
+        <label class="auth-label">이메일</label>
+        <input class="auth-input" id="loginEmail" type="email" placeholder="이메일 입력" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">비밀번호</label>
+        <input class="auth-input" id="loginPw" type="password" placeholder="비밀번호 입력" autocomplete="current-password"/>
+      </div>
+      <div class="auth-error" id="loginError"></div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">로그인</button>
+    </div>
+
+    <!-- 회원가입 -->
+    <div id="signupForm" style="display:none">
+      <div class="auth-field">
+        <label class="auth-label">이메일</label>
+        <input class="auth-input" id="signupEmail" type="email" placeholder="이메일 입력" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">비밀번호</label>
+        <input class="auth-input" id="signupPw" type="password" placeholder="6자 이상" autocomplete="new-password"/>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">비밀번호 확인</label>
+        <input class="auth-input" id="signupPw2" type="password" placeholder="비밀번호 재입력" autocomplete="new-password"/>
+      </div>
+      <div class="auth-error" id="signupError"></div>
+      <button class="auth-btn" id="signupBtn" onclick="doSignup()">회원가입</button>
+    </div>
+  </div>
+</div>
+
+<!-- MY PAGE MODAL -->
+<div class="mypage-bg" id="mypageBg" onclick="closeMypageBg(event)">
+  <div class="mypage-modal">
+    <div class="mypage-title">마이페이지</div>
+    <div class="mypage-avatar">👤</div>
+    <div class="mypage-email" id="mypageEmail"></div>
+    <div class="mypage-field">
+      <label class="mypage-label">아이디 (닉네임)</label>
+      <input class="mypage-input" id="mypageUsername" type="text" placeholder="아이디 입력"/>
+    </div>
+    <div class="mypage-btns">
+      <button class="mypage-cancel" onclick="closeMypage()">취소</button>
+      <button class="mypage-save" onclick="saveMypage()">저장</button>
+    </div>
+    <button class="mypage-logout" onclick="doLogout()">로그아웃</button>
+  </div>
+</div>
 
 <header>
   <div class="header-left">
@@ -403,9 +556,10 @@ header{
 <nav class="menu-drawer" id="menuDrawer">
   <div class="menu-head">
     <div class="menu-brand">뉴스 브리핑</div>
-    <div class="menu-sub">매일 아침 뉴스를 한눈에</div>
+    <div class="menu-sub" id="menuUserInfo">매일 아침 뉴스를 한눈에</div>
   </div>
   <ul class="menu-list">
+    <li><button class="menu-item-btn" onclick="openMypage();closeMenu()"><span class="menu-item-icon">👤</span>마이페이지</button></li>
     <li><button class="menu-item-btn" onclick="openTimeModal();closeMenu()"><span class="menu-item-icon">⏰</span>시간 설정</button></li>
     <li><button class="menu-item-btn" onclick="refreshTodayNews();closeMenu()"><span class="menu-item-icon">🔄</span>뉴스 새로고침</button></li>
   </ul>
@@ -463,6 +617,133 @@ header{
 </div>
 
 <script>
+// ===== FIREBASE =====
+firebase.initializeApp({
+  apiKey: "AIzaSyDjQdD69l5E5e6xLHe0JiPTTKHL1V7sl6k",
+  authDomain: "choops93-93ff.firebaseapp.com",
+  projectId: "choops93-93ff",
+  storageBucket: "choops93-93ff.firebasestorage.app",
+  messagingSenderId: "795885457660",
+  appId: "1:795885457660:web:4237eaaccba1d0ccb84779"
+});
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+let currentUser = null;
+let appInitialized = false;
+
+const ADJ  = ['빠른','조용한','밝은','신나는','차가운','따뜻한','용감한','영리한','날쌘','귀여운','멋진','강한','부드러운','활발한','슬기로운','씩씩한','재빠른','늠름한','다정한','지혜로운'];
+const NOUN = ['고양이','강아지','호랑이','여우','토끼','사자','독수리','나비','별','달','구름','바람','파도','산','숲','꽃','나무','바다','강물','햇살'];
+
+function randomUsername() {
+  return ADJ[Math.floor(Math.random()*ADJ.length)] + NOUN[Math.floor(Math.random()*NOUN.length)];
+}
+
+// 인증 상태 감지
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    currentUser = user;
+    document.getElementById('authOverlay').classList.remove('show');
+    // 유저 정보 메뉴에 표시
+    const snap = await db.collection('users').doc(user.uid).get();
+    const username = snap.exists ? snap.data().username : '';
+    document.getElementById('menuUserInfo').textContent = username ? `@${username}` : user.email;
+    if (!appInitialized) { appInitialized = true; init(); }
+  } else {
+    currentUser = null;
+    document.getElementById('authOverlay').classList.add('show');
+  }
+});
+
+// 탭 전환
+function switchAuthTab(tab) {
+  document.getElementById('loginForm').style.display  = tab === 'login'  ? '' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? '' : 'none';
+  document.getElementById('tabLogin').classList.toggle('active',  tab === 'login');
+  document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+  document.getElementById('loginError').textContent  = '';
+  document.getElementById('signupError').textContent = '';
+}
+
+// 로그인
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw    = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+  if (!email || !pw) { errEl.textContent = '이메일과 비밀번호를 입력하세요.'; return; }
+  btn.classList.add('auth-loading'); btn.textContent = '로그인 중...';
+  try {
+    await auth.signInWithEmailAndPassword(email, pw);
+  } catch(e) {
+    errEl.textContent = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password'
+      ? '이메일 또는 비밀번호가 틀렸습니다.' : '로그인에 실패했습니다.';
+  } finally {
+    btn.classList.remove('auth-loading'); btn.textContent = '로그인';
+  }
+}
+
+// 회원가입
+async function doSignup() {
+  const email = document.getElementById('signupEmail').value.trim();
+  const pw    = document.getElementById('signupPw').value;
+  const pw2   = document.getElementById('signupPw2').value;
+  const errEl = document.getElementById('signupError');
+  const btn   = document.getElementById('signupBtn');
+  if (!email || !pw) { errEl.textContent = '이메일과 비밀번호를 입력하세요.'; return; }
+  if (pw.length < 6)  { errEl.textContent = '비밀번호는 6자 이상이어야 합니다.'; return; }
+  if (pw !== pw2)     { errEl.textContent = '비밀번호가 일치하지 않습니다.'; return; }
+  btn.classList.add('auth-loading'); btn.textContent = '가입 중...';
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, pw);
+    const username = randomUsername();
+    await db.collection('users').doc(cred.user.uid).set({
+      email, username, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch(e) {
+    errEl.textContent = e.code === 'auth/email-already-in-use'
+      ? '이미 사용 중인 이메일입니다.' : '회원가입에 실패했습니다.';
+  } finally {
+    btn.classList.remove('auth-loading'); btn.textContent = '회원가입';
+  }
+}
+
+// 로그아웃
+async function doLogout() {
+  await auth.signOut();
+  closeMypage();
+  appInitialized = false;
+}
+
+// ===== MY PAGE =====
+async function openMypage() {
+  if (!currentUser) return;
+  document.getElementById('mypageEmail').textContent = currentUser.email;
+  const snap = await db.collection('users').doc(currentUser.uid).get();
+  document.getElementById('mypageUsername').value = snap.exists ? snap.data().username : '';
+  document.getElementById('mypageBg').classList.add('open');
+}
+function closeMypage() { document.getElementById('mypageBg').classList.remove('open'); }
+function closeMypageBg(e) { if (e.target === document.getElementById('mypageBg')) closeMypage(); }
+async function saveMypage() {
+  const username = document.getElementById('mypageUsername').value.trim();
+  if (!username) { toast('아이디를 입력해 주세요.'); return; }
+  if (username.length < 2) { toast('아이디는 2자 이상이어야 합니다.'); return; }
+  await db.collection('users').doc(currentUser.uid).update({ username });
+  document.getElementById('menuUserInfo').textContent = `@${username}`;
+  closeMypage();
+  toast('저장됐습니다.');
+}
+
+// Enter 키 지원
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('loginForm').style.display !== 'none' &&
+      document.getElementById('authOverlay').classList.contains('show')) doLogin();
+  else if (document.getElementById('signupForm').style.display !== 'none' &&
+      document.getElementById('authOverlay').classList.contains('show')) doSignup();
+});
+
 // ===== STATE =====
 const S = {
   today: new Date(),
@@ -1018,7 +1299,7 @@ document.addEventListener('click', e => {
 }, true);
 
 // ===== START =====
-init();
+// init()은 Firebase 인증 완료 후 onAuthStateChanged에서 자동 호출됨
 </script>
 </body>
 </html>
