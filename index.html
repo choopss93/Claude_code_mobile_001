@@ -331,6 +331,25 @@ header{
   -webkit-tap-highlight-color:transparent;
   text-decoration:underline;text-underline-offset:2px;
 }
+.scrap-btn{font-size:16px;padding:2px 6px;opacity:0.35;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;transition:opacity 0.15s,transform 0.15s}
+.scrap-btn.scraped{opacity:1}
+.scrap-btn:active{transform:scale(1.3)}
+
+.scrap-panel{display:none;position:fixed;bottom:0;left:0;right:0;max-height:80vh;background:var(--white);z-index:150;border-radius:20px 20px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.12);flex-direction:column}
+.scrap-panel.open{display:flex;animation:slideUp 0.25s ease}
+.scrap-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.scrap-header-title{font-size:16px;font-weight:800;color:var(--navy)}
+.scrap-close-btn{background:#f0f0f0;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.scrap-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 40px}
+.scrap-date-group{margin-bottom:20px}
+.scrap-date-label{font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;padding:3px 8px;background:var(--bg);border-radius:6px;display:inline-block}
+.scrap-article{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg)}
+.scrap-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.scrap-article-body{flex:1;cursor:pointer}
+.scrap-article-title{font-size:14px;font-weight:600;color:var(--navy);line-height:1.4}
+.scrap-article-meta{font-size:11px;color:var(--sub);margin-top:3px}
+.scrap-remove-btn{background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:0 4px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.scrap-empty{text-align:center;color:var(--sub);padding:48px 20px;font-size:14px;line-height:1.8}
 
 .news-card{
   background:var(--bg);border-radius:14px;
@@ -561,6 +580,7 @@ header{
   <ul class="menu-list">
     <li><button class="menu-item-btn" onclick="openMypage();closeMenu()"><span class="menu-item-icon">👤</span>마이페이지</button></li>
     <li><button class="menu-item-btn" onclick="openTimeModal();closeMenu()"><span class="menu-item-icon">⏰</span>시간 설정</button></li>
+    <li><button class="menu-item-btn" onclick="openScrapPanel();closeMenu()"><span class="menu-item-icon">📌</span>스크랩</button></li>
     <li><button class="menu-item-btn" onclick="refreshTodayNews();closeMenu()"><span class="menu-item-icon">🔄</span>뉴스 새로고침</button></li>
   </ul>
 </nav>
@@ -591,6 +611,15 @@ header{
     <button class="notif-close-btn" onclick="closeNotifPanel()">✕</button>
   </div>
   <div class="notif-list" id="notifList"></div>
+</div>
+
+<!-- SCRAP LIST -->
+<div class="scrap-panel" id="scrapPanel">
+  <div class="scrap-header">
+    <span class="scrap-header-title">📌 스크랩</span>
+    <button class="scrap-close-btn" onclick="closeScrapPanel()">✕</button>
+  </div>
+  <div class="scrap-list" id="scrapList"></div>
 </div>
 
 <!-- NEWS POPUP -->
@@ -648,6 +677,20 @@ auth.onAuthStateChanged(async user => {
     const snap = await db.collection('users').doc(user.uid).get();
     const username = snap.exists ? snap.data().username : '';
     document.getElementById('menuUserInfo').textContent = username ? `@${username}` : user.email;
+    // 계정별 알림 시간 설정 로드
+    try {
+      const settingsSnap = await db.collection('users').doc(user.uid).collection('settings').doc('alarm').get();
+      if (settingsSnap.exists) {
+        const d = settingsSnap.data();
+        if (typeof d.hour === 'number' && typeof d.minute === 'number') {
+          S.settings.hour = d.hour;
+          S.settings.minute = d.minute;
+          localStorage.setItem('nbr_settings', JSON.stringify(S.settings));
+        }
+      }
+    } catch(e) {}
+    // 스크랩 로드
+    await loadScraps();
     if (!appInitialized) { appInitialized = true; init(); }
   } else {
     currentUser = null;
@@ -756,7 +799,8 @@ const S = {
   currentNewsDate: null,
   currentTab: 'trend',
   notifPanelOpen: false,
-  checkTimer: null
+  checkTimer: null,
+  scraps: new Set()
 };
 
 const CAT_META = {
@@ -1174,10 +1218,13 @@ function renderNewsContent() {
       </div>`;
     articles.forEach((a, i) => {
       const id = `${cat}_${i}`;
+      const scrapData = {date: S.currentNewsDate, category: cat, title: a.title, summary: a.summary, source: a.source, url: a.url||''};
+      const isScraped = S.scraps.has(scrapKey(S.currentNewsDate, a.title));
       html += `
       <div class="acc-item">
         <div class="acc-title" onclick="toggleAcc('${id}')">
           <span class="acc-title-text">${a.title}</span>
+          <span class="scrap-btn${isScraped ? ' scraped' : ''}" id="scrap_${id}" onclick="toggleScrap(event,'${id}','${encodeURIComponent(JSON.stringify(scrapData))}')" >🔖</span>
           <span class="acc-arrow" id="arrow_${id}">›</span>
         </div>
         <div class="acc-body" id="body_${id}">
@@ -1219,6 +1266,132 @@ function toggleAcc(id) {
   }
 }
 
+// ===== SCRAP =====
+function scrapKey(date, title) { return date + '::' + title; }
+
+async function loadScraps() {
+  if (!currentUser) return;
+  try {
+    const snap = await db.collection('users').doc(currentUser.uid).collection('scraps').get();
+    S.scraps.clear();
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (d.date && d.title) S.scraps.add(scrapKey(d.date, d.title));
+    });
+  } catch(e) {}
+}
+
+async function toggleScrap(event, id, encodedData) {
+  event.stopPropagation();
+  if (!currentUser) { toast('로그인이 필요합니다.'); return; }
+  let article;
+  try { article = JSON.parse(decodeURIComponent(encodedData)); } catch(e) { return; }
+  const key = scrapKey(article.date, article.title);
+  const btn = document.getElementById('scrap_' + id);
+  const scrapsRef = db.collection('users').doc(currentUser.uid).collection('scraps');
+  const docId = btoa(encodeURIComponent(article.date + article.title)).substring(0, 20);
+  if (S.scraps.has(key)) {
+    // 스크랩 해제
+    try { await scrapsRef.doc(docId).delete(); } catch(e) {}
+    S.scraps.delete(key);
+    if (btn) btn.classList.remove('scraped');
+    toast('스크랩이 해제됐습니다.');
+  } else {
+    // 스크랩 추가
+    try {
+      await scrapsRef.doc(docId).set({
+        date: article.date,
+        category: article.category,
+        title: article.title,
+        summary: article.summary,
+        source: article.source,
+        url: article.url,
+        scrappedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch(e) {}
+    S.scraps.add(key);
+    if (btn) btn.classList.add('scraped');
+    toast('스크랩됐습니다.');
+  }
+}
+
+function openScrapPanel() {
+  document.getElementById('scrapPanel').classList.add('open');
+  renderScrapList();
+}
+function closeScrapPanel() {
+  document.getElementById('scrapPanel').classList.remove('open');
+}
+
+async function renderScrapList() {
+  const listEl = document.getElementById('scrapList');
+  if (!currentUser) { listEl.innerHTML = '<div class="scrap-empty">로그인이 필요합니다.</div>'; return; }
+  listEl.innerHTML = '<div class="scrap-empty">불러오는 중...</div>';
+  try {
+    const snap = await db.collection('users').doc(currentUser.uid).collection('scraps').orderBy('scrappedAt','desc').get();
+    if (snap.empty) {
+      listEl.innerHTML = '<div class="scrap-empty">📌 스크랩한 기사가 없습니다.<br>기사 옆 🔖를 눌러 저장하세요.</div>';
+      return;
+    }
+    // 날짜별 그룹
+    const groups = {};
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!groups[d.date]) groups[d.date] = [];
+      groups[d.date].push(d);
+    });
+    const catColors = { trend:'#ff6b6b', social:'#4ecdc4', it:'#45b7d1', global:'#96ceb4' };
+    let html = '';
+    Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date => {
+      html += `<div class="scrap-date-group"><span class="scrap-date-label">${fmtDisplay(date)}</span>`;
+      groups[date].forEach(a => {
+        const color = catColors[a.category] || '#bbb';
+        const encDate = encodeURIComponent(date);
+        const docId = btoa(encodeURIComponent(a.date + a.title)).substring(0, 20);
+        html += `<div class="scrap-article">
+          <span class="scrap-cat-dot" style="background:${color}"></span>
+          <div class="scrap-article-body" onclick="openNewsFromScrap('${encDate}')">
+            <div class="scrap-article-title">${a.title}</div>
+            <div class="scrap-article-meta">${a.source || ''}</div>
+          </div>
+          <button class="scrap-remove-btn" onclick="removeScrapFromList('${docId}','${encodeURIComponent(a.date)}','${encodeURIComponent(a.title)}',this)">✕</button>
+        </div>`;
+      });
+      html += '</div>';
+    });
+    listEl.innerHTML = html;
+  } catch(e) {
+    listEl.innerHTML = '<div class="scrap-empty">불러오기 실패. 다시 시도해 주세요.</div>';
+  }
+}
+
+async function removeScrapFromList(docId, encDate, encTitle, btn) {
+  if (!currentUser) return;
+  const date = decodeURIComponent(encDate);
+  const title = decodeURIComponent(encTitle);
+  try { await db.collection('users').doc(currentUser.uid).collection('scraps').doc(docId).delete(); } catch(e) {}
+  S.scraps.delete(scrapKey(date, title));
+  // 버튼의 부모 article 요소 제거
+  const article = btn.closest('.scrap-article');
+  if (article) {
+    const group = article.closest('.scrap-date-group');
+    article.remove();
+    if (group && group.querySelectorAll('.scrap-article').length === 0) group.remove();
+  }
+  // 스크랩 패널이 비어있으면 안내 문구 표시
+  const listEl = document.getElementById('scrapList');
+  if (listEl && !listEl.querySelector('.scrap-article')) {
+    listEl.innerHTML = '<div class="scrap-empty">📌 스크랩한 기사가 없습니다.<br>기사 옆 🔖를 눌러 저장하세요.</div>';
+  }
+  toast('스크랩이 해제됐습니다.');
+}
+
+function openNewsFromScrap(encDate) {
+  const date = decodeURIComponent(encDate);
+  closeScrapPanel();
+  openNews(date);
+}
+
 // ===== MENU =====
 function openMenu() {
   document.getElementById('menuDrawer').classList.add('open');
@@ -1247,6 +1420,15 @@ function saveTime() {
   S.settings.hour   = parseInt(document.getElementById('hourSelect').value);
   S.settings.minute = parseInt(document.getElementById('minuteSelect').value);
   localStorage.setItem('nbr_settings', JSON.stringify(S.settings));
+
+  // Firestore에 계정별 알림 시간 저장
+  if (currentUser) {
+    db.collection('users').doc(currentUser.uid).collection('settings').doc('alarm').set({
+      hour: S.settings.hour,
+      minute: S.settings.minute,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(e => {});
+  }
 
   const todayStr = fmt(S.today);
   if (S.notifState[todayStr]) S.notifState[todayStr].delivered = false;
