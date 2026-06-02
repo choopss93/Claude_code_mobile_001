@@ -954,7 +954,11 @@ function setLoading(on) {
 }
 
 async function tryFetchRSS() {
-  const PROXY = 'https://api.allorigins.win/raw?url=';
+  const PROXIES = [
+    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+    url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  ];
   const FEEDS = [
     ['trend',  'https://news.google.com/rss/search?q=한국+트렌드+이슈&hl=ko&gl=KR&ceid=KR:ko'],
     ['social', 'https://news.google.com/rss/search?q=한국+경제+사회&hl=ko&gl=KR&ceid=KR:ko'],
@@ -964,24 +968,22 @@ async function tryFetchRSS() {
   const todayStr = fmt(S.today);
   const cacheDate = localStorage.getItem('nbr_news_cache_date');
   if (cacheDate === todayStr) {
-    // 캐시가 있더라도 일부 카테고리가 비어있으면 재시도
     const cached = JSON.parse(localStorage.getItem('nbr_news_cache') || '{}');
     const allFull = FEEDS.every(([c]) => cached[todayStr]?.[c]?.length > 0);
     if (allFull) return;
   }
 
-  S.isFetching = true;
-  setLoading(true);
-  try {
-    const result = {};
-    for (const [cat, feedUrl] of FEEDS) {
+  async function fetchOneFeed(feedUrl) {
+    for (const proxyFn of PROXIES) {
       try {
-        const res = await fetch(PROXY + encodeURIComponent(feedUrl));
-        if (!res.ok) { await new Promise(r => setTimeout(r, 500)); continue; }
+        const res = await fetch(proxyFn(feedUrl), { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) continue;
         const txt = await res.text();
         const parser = new DOMParser();
         const xml = parser.parseFromString(txt, 'text/xml');
+        if (xml.querySelector('parsererror')) continue;
         const items = Array.from(xml.querySelectorAll('item'));
+        if (!items.length) continue;
         const parsed = [];
         for (const item of items) {
           if (parsed.length >= 3) break;
@@ -997,17 +999,26 @@ async function tryFetchRSS() {
           let articleUrl = '';
           const linkEls = item.getElementsByTagName('link');
           for (const el of linkEls) {
-            const txt = (el.textContent || el.getAttribute('href') || '').trim();
-            if (txt.startsWith('http')) { articleUrl = txt; break; }
+            const t = (el.textContent || el.getAttribute('href') || '').trim();
+            if (t.startsWith('http')) { articleUrl = t; break; }
           }
           if (!articleUrl) articleUrl = item.querySelector('guid')?.textContent?.trim() || '';
           if (!title) continue;
           parsed.push({ title, summary, source, url: articleUrl });
         }
-        result[cat] = parsed;
+        if (parsed.length) return parsed;
       } catch(e) {}
-      // allorigins 속도 제한 방지: 요청 사이 400ms 대기
-      await new Promise(r => setTimeout(r, 400));
+    }
+    return [];
+  }
+
+  S.isFetching = true;
+  setLoading(true);
+  try {
+    const result = {};
+    for (const [cat, feedUrl] of FEEDS) {
+      result[cat] = await fetchOneFeed(feedUrl);
+      await new Promise(r => setTimeout(r, 300));
     }
 
     const cats = ['trend','social','it','global'];
