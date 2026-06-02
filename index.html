@@ -954,23 +954,28 @@ function setLoading(on) {
 
 async function tryFetchRSS() {
   const PROXY = 'https://api.allorigins.win/raw?url=';
-  const FEEDS = {
-    trend:  'https://news.google.com/rss/search?q=한국+트렌드+이슈&hl=ko&gl=KR&ceid=KR:ko',
-    social: 'https://news.google.com/rss/search?q=한국+경제+사회&hl=ko&gl=KR&ceid=KR:ko',
-    it:     'https://news.google.com/rss/search?q=한국+IT+기술+인공지능&hl=ko&gl=KR&ceid=KR:ko',
-    global: 'https://news.google.com/rss/search?q=국제뉴스+세계&hl=ko&gl=KR&ceid=KR:ko'
-  };
+  const FEEDS = [
+    ['trend',  'https://news.google.com/rss/search?q=한국+트렌드+이슈&hl=ko&gl=KR&ceid=KR:ko'],
+    ['social', 'https://news.google.com/rss/search?q=한국+경제+사회&hl=ko&gl=KR&ceid=KR:ko'],
+    ['it',     'https://news.google.com/rss/search?q=한국+IT+기술+인공지능&hl=ko&gl=KR&ceid=KR:ko'],
+    ['global', 'https://news.google.com/rss/search?q=국제뉴스+세계&hl=ko&gl=KR&ceid=KR:ko']
+  ];
   const todayStr = fmt(S.today);
   const cacheDate = localStorage.getItem('nbr_news_cache_date');
-  if (cacheDate === todayStr) return;
+  if (cacheDate === todayStr) {
+    // 캐시가 있더라도 일부 카테고리가 비어있으면 재시도
+    const cached = JSON.parse(localStorage.getItem('nbr_news_cache') || '{}');
+    const allFull = FEEDS.every(([c]) => cached[todayStr]?.[c]?.length > 0);
+    if (allFull) return;
+  }
 
   setLoading(true);
   try {
     const result = {};
-    await Promise.all(Object.entries(FEEDS).map(async ([cat, feedUrl]) => {
+    for (const [cat, feedUrl] of FEEDS) {
       try {
         const res = await fetch(PROXY + encodeURIComponent(feedUrl));
-        if (!res.ok) return;
+        if (!res.ok) { await new Promise(r => setTimeout(r, 500)); continue; }
         const txt = await res.text();
         const parser = new DOMParser();
         const xml = parser.parseFromString(txt, 'text/xml');
@@ -987,7 +992,6 @@ async function tryFetchRSS() {
           }
           const summary = (item.querySelector('description')?.textContent || '')
             .replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
-          // Google News RSS에서 링크 추출: <link> 태그 또는 nextSibling 방식
           let articleUrl = '';
           const linkEls = item.getElementsByTagName('link');
           for (const el of linkEls) {
@@ -1000,18 +1004,24 @@ async function tryFetchRSS() {
         }
         result[cat] = parsed;
       } catch(e) {}
-    }));
+      // allorigins 속도 제한 방지: 요청 사이 400ms 대기
+      await new Promise(r => setTimeout(r, 400));
+    }
 
     const cats = ['trend','social','it','global'];
     if (cats.some(c => result[c] && result[c].length > 0)) {
+      const existing = S.newsData[todayStr] || {};
       S.newsData[todayStr] = {
-        trend:  result.trend  || S.newsData[todayStr]?.trend  || [],
-        social: result.social || S.newsData[todayStr]?.social || [],
-        it:     result.it     || S.newsData[todayStr]?.it     || [],
-        global: result.global || S.newsData[todayStr]?.global || []
+        trend:  result.trend?.length  ? result.trend  : existing.trend  || [],
+        social: result.social?.length ? result.social : existing.social || [],
+        it:     result.it?.length     ? result.it     : existing.it     || [],
+        global: result.global?.length ? result.global : existing.global || []
       };
       localStorage.setItem('nbr_news_cache', JSON.stringify(S.newsData));
-      localStorage.setItem('nbr_news_cache_date', todayStr);
+      // 4개 카테고리 모두 채워졌을 때만 오늘 날짜로 완전 캐시
+      if (cats.every(c => S.newsData[todayStr][c].length > 0)) {
+        localStorage.setItem('nbr_news_cache_date', todayStr);
+      }
       renderCalendar();
     }
   } catch(e) {}
