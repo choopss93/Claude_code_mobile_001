@@ -847,7 +847,8 @@ const S = {
   currentTab: 'trend',
   notifPanelOpen: false,
   checkTimer: null,
-  scraps: new Set()
+  scraps: new Set(),
+  isFetching: false
 };
 
 const CAT_META = {
@@ -969,6 +970,7 @@ async function tryFetchRSS() {
     if (allFull) return;
   }
 
+  S.isFetching = true;
   setLoading(true);
   try {
     const result = {};
@@ -1025,6 +1027,7 @@ async function tryFetchRSS() {
       renderCalendar();
     }
   } catch(e) {}
+  S.isFetching = false;
   setLoading(false);
 }
 
@@ -1234,6 +1237,10 @@ async function requestNotifPermission() {
 
 // ===== NEWS POPUP =====
 function openNews(dateStr) {
+  if (S.isFetching && dateStr === fmt(S.today)) {
+    toast('뉴스를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
   S.currentNewsDate = dateStr;
   document.getElementById('newsDateTitle').textContent = fmtDisplay(dateStr);
   renderNewsContent();
