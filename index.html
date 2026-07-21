@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>뉴스 캘린더</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  background: #f0f2f5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── TOP BAR ─────────────────────────────── */
+#topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 54px;
+  background: #1a2f4e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+#topbar h1 {
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.tb-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 8px;
+  line-height: 1;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.tb-btn:active { background: rgba(255,255,255,0.15); }
+
+/* ── BELL ────────────────────────────────── */
+#bellWrap { position: relative; }
+#bellDot {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 9px; height: 9px;
+  background: #ff3b30;
+  border-radius: 50%;
+  border: 2px solid #1a2f4e;
+  pointer-events: none;
+}
+.hidden { display: none !important; }
+
+/* ── OVERLAY ─────────────────────────────── */
+#overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+  display: none;
+}
+#overlay.show { display: block; }
+
+/* ── SIDEBAR ─────────────────────────────── */
+#sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: 260px; height: 100%;
+  background: white;
+  z-index: 300;
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+}
+#sidebar.open { transform: translateX(0); }
+#sidebarHead {
+  background: #1a2f4e;
+  padding: 54px 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#sidebarHead h2 { color: white; font-size: 15px; font-weight: 700; }
+#closeSidebar {
+  background: rgba(255,255,255,0.15);
+  border: none; color: white;
+  font-size: 16px; cursor: pointer;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.sb-item {
+  padding: 17px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 13px;
+  font-size: 15px; color: #222;
+  transition: background 0.1s;
+}
+.sb-item:active { background: #f5f5f5; }
+.sb-icon { font-size: 20px; }
+
+/* ── BELL PANEL ──────────────────────────── */
+#bellPanel {
+  position: fixed;
+  top: 54px; left: 0; right: 0;
+  background: white;
+  z-index: 150;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.13);
+  transform: translateY(-110%);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1), opacity 0.3s;
+  max-height: 78vh;
+  overflow-y: auto;
+  border-radius: 0 0 16px 16px;
+}
+#bellPanel.open { transform: translateY(0); opacity: 1; }
+#bellPanelHead {
+  padding: 14px 20px 10px;
+  font-size: 15px; font-weight: 700; color: #1a2f4e;
+  border-bottom: 1px solid #eee;
+  display: flex; align-items: center; gap: 7px;
+}
+.notif-item {
+  padding: 13px 20px;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.notif-item:active { background: #f8f9fb; }
+.notif-item.unread { background: #fffbf0; border-left: 3px solid #ff9500; }
+.notif-date { font-size: 11px; color: #999; font-weight: 600; margin-bottom: 4px; }
+.notif-preview {
+  font-size: 13.5px; color: #333; line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notif-empty { padding: 28px 20px; text-align: center; color: #bbb; font-size: 14px; }
+
+/* ── MAIN ────────────────────────────────── */
+#main { margin-top: 54px; padding: 12px 10px 20px; }
+
+/* ── CALENDAR CARD ───────────────────────── */
+#calCard {
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 2px 14px rgba(0,0,0,0.07);
+  overflow: hidden;
+}
+#calNav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px;
+  border-bottom: 1px solid #f0f0f0;
+}
+#calNav button {
+  background: #f0f3f8; border: none;
+  font-size: 16px; cursor: pointer; color: #1a2f4e;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+#calNav button:active { background: #dce4f0; }
+#monthLabel { font-size: 17px; font-weight: 700; color: #1a2f4e; }
+#weekDays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  background: #f8f9fb; padding: 7px 0;
+}
+.wd {
+  text-align: center; font-size: 11px;
+  font-weight: 700; color: #aaa; letter-spacing: 0.3px;
+}
+.wd:first-child { color: #ff453a; }
+.wd:last-child { color: #007aff; }
+#calGrid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.day-cell {
+  min-height: 54px; padding: 5px 4px;
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center;
+  position: relative;
+  transition: background 0.1s;
+}
+.day-cell:active { background: #f5f5f5; }
+.day-num {
+  font-size: 13.5px; font-weight: 500; color: #333;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.day-cell.today .day-num { background: #1a2f4e; color: white; font-weight: 700; }
+.day-cell.other-month .day-num { color: #d0d0d0; }
+.day-cell.sunday .day-num { color: #ff453a; }
+.day-cell.saturday .day-num { color: #007aff; }
+.day-cell.today .day-num,
+.day-cell.today.sunday .day-num,
+.day-cell.today.saturday .day-num { color: white; }
+.news-dot {
+  width: 5px; height: 5px;
+  background: #ff9500; border-radius: 50%; margin-top: 2px;
+}
+.day-cell.other-month { cursor: default; pointer-events: none; }
+
+/* ── FOOTER ──────────────────────────────── */
+#footer {
+  margin-top: 12px; text-align: center;
+  font-size: 12px; color: #b0b0b0; padding: 4px;
+}
+
+/* ── MODAL BASE ──────────────────────────── */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-box {
+  background: white; border-radius: 20px;
+  width: 100%; max-width: 380px;
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-head {
+  padding: 18px 18px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+.modal-title { font-size: 16px; font-weight: 700; color: #1a2f4e; }
+.modal-close {
+  background: #f0f0f0; border: none;
+  font-size: 16px; cursor: pointer; color: #666;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-close:active { background: #e0e0e0; }
+
+/* ── TIME MODAL ──────────────────────────── */
+.time-pickers {
+  padding: 28px 20px 10px;
+  display: flex; gap: 12px;
+  align-items: center; justify-content: center;
+}
+.picker-grp { text-align: center; }
+.picker-lbl { font-size: 11px; color: #999; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.5px; }
+.picker-sel {
+  font-size: 26px; font-weight: 700; color: #1a2f4e;
+  border: 2px solid #e0e8f0; border-radius: 14px;
+  padding: 10px 14px; background: #f8f9fb;
+  text-align: center; width: 84px; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+.time-colon {
+  font-size: 30px; font-weight: 700; color: #1a2f4e;
+  margin-top: 18px; line-height: 1;
+}
+.time-note {
+  text-align: center; font-size: 13px; color: #999;
+  padding: 10px 20px 18px;
+}
+.modal-actions {
+  padding: 10px 18px 20px;
+  display: flex; gap: 10px;
+}
+.btn-cancel {
+  flex: 1; padding: 14px; border: 1.5px solid #e0e8f0;
+  border-radius: 14px; background: white; color: #999;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.btn-save {
+  flex: 2; padding: 14px; border: none;
+  border-radius: 14px; background: #1a2f4e; color: white;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.btn-save:active { background: #0f1e30; }
+
+/* ── NEWS MODAL ──────────────────────────── */
+.news-modal-head {
+  background: linear-gradient(135deg, #1a2f4e 0%, #2a4f7e 100%);
+  padding: 18px 18px 16px;
+  border-radius: 20px 20px 0 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.news-date-lbl { color: white; font-size: 16px; font-weight: 700; }
+.news-modal-head .modal-close { background: rgba(255,255,255,0.2); color: white; }
+.news-cats { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cat-card { border-radius: 13px; overflow: hidden; }
+.cat-head {
+  padding: 9px 13px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 700; color: white;
+}
+.cat-body {
+  padding: 11px 13px; font-size: 13.5px; line-height: 1.75;
+  color: #333; background: #f8f9fb;
+}
+.cat-trend .cat-head { background: #e91e63; }
+.cat-social .cat-head { background: #2e7d32; }
+.cat-it .cat-head { background: #0277bd; }
+.cat-intl .cat-head { background: #e65100; }
+
+/* ── TOAST ───────────────────────────────── */
+#toast {
+  position: fixed; bottom: 32px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(40,40,40,0.88);
+  color: white; font-size: 13px;
+  padding: 10px 20px; border-radius: 20px;
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 999; white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <button class="tb-btn" id="menuBtn">☰</button>
+  <h1>📰 뉴스 캘린더</h1>
+  <div id="bellWrap">
+    <button class="tb-btn" id="bellBtn">🔔</button>
+    <div id="bellDot" class="hidden"></div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div id="overlay" onclick="closeAll()"></div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebarHead">
+    <h2>메뉴</h2>
+    <button id="closeSidebar" onclick="closeSidebar()">✕</button>
+  </div>
+  <div class="sb-item" onclick="openTimeModal()">
+    <span class="sb-icon">⏰</span>
+    <span>시간설정</span>
+  </div>
+</div>
+
+<!-- BELL PANEL -->
+<div id="bellPanel">
+  <div id="bellPanelHead">🔔 알림 (최근 7일)</div>
+  <div id="notifList"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="calCard">
+    <div id="calNav">
+      <button onclick="changeMonth(-1)">◀</button>
+      <span id="monthLabel"></span>
+      <button onclick="changeMonth(1)">▶</button>
+    </div>
+    <div id="weekDays">
+      <div class="wd">일</div><div class="wd">월</div>
+      <div class="wd">화</div><div class="wd">수</div>
+      <div class="wd">목</div><div class="wd">금</div>
+      <div class="wd">토</div>
+    </div>
+    <div id="calGrid"></div>
+  </div>
+  <div id="footer" id="alertTimeLabel"></div>
+</div>
+
+<!-- TIME MODAL -->
+<div class="modal-bg hidden" id="timeModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">⏰ 알림 시간 설정</span>
+      <button class="modal-close" onclick="closeTimeModal()">✕</button>
+    </div>
+    <div class="time-pickers">
+      <div class="picker-grp">
+        <div class="picker-lbl">시 (오전)</div>
+        <select class="picker-sel" id="hourSel"></select>
+      </div>
+      <div class="time-colon">:</div>
+      <div class="picker-grp">
+        <div class="picker-lbl">분</div>
+        <select class="picker-sel" id="minSel"></select>
+      </div>
+    </div>
+    <div class="time-note">매일 이 시간에 뉴스 알림이 표시됩니다</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTimeModal()">취소</button>
+      <button class="btn-save" onclick="saveAlertTime()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEWS MODAL -->
+<div class="modal-bg hidden" id="newsModal">
+  <div class="modal-box">
+    <div class="news-modal-head">
+      <span class="news-date-lbl" id="newsDateLbl"></span>
+      <button class="modal-close" onclick="closeNewsModal()">✕</button>
+    </div>
+    <div class="news-cats" id="newsCats"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────
+let newsData = {};
+let curYear, curMonth;
+const TODAY = new Date();
+const todayStr = fmtDate(TODAY);
+
+// ─── UTILS ───────────────────────────────────────────────────────
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDisplay(ds) {
+  const [y,m,d] = ds.split('-');
+  const dow = ['일','월','화','수','목','금','토'][new Date(ds).getDay()];
+  return `${y}년 ${+m}월 ${+d}일 (${dow})`;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── ALERT TIME ───────────────────────────────────────────────────
+function getAlertTime() {
+  return JSON.parse(localStorage.getItem('alertTime') || '{"hour":8,"minute":0}');
+}
+function updateFooter() {
+  const t = getAlertTime();
+  const h = String(t.hour).padStart(2,'0');
+  const m = String(t.minute).padStart(2,'0');
+  document.getElementById('footer').textContent = `알림 시간: 매일 오전 ${h}:${m}`;
+}
+
+// ─── NOTIFICATION HISTORY ─────────────────────────────────────────
+function getHistory() {
+  return JSON.parse(localStorage.getItem('notifHistory') || '[]');
+}
+function saveHistory(h) {
+  localStorage.setItem('notifHistory', JSON.stringify(h));
+}
+
+function checkAndFire() {
+  if (!newsData[todayStr]) return;
+  const at = getAlertTime();
+  const now = new Date();
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  const atM = at.hour * 60 + at.minute;
+  if (nowM < atM) return;
+
+  const hist = getHistory();
+  if (hist.find(n => n.date === todayStr)) return;
+
+  hist.push({ date: todayStr, read: false });
+  // keep 7 days
+  const cutStr = fmtDate(new Date(TODAY.getTime() - 7*864e5));
+  saveHistory(hist.filter(n => n.date >= cutStr));
+  updateDot();
+}
+
+function updateDot() {
+  const hasUnread = getHistory().some(n => !n.read);
+  document.getElementById('bellDot').classList.toggle('hidden', !hasUnread);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch('./news-data.json?t=' + Date.now());
+    newsData = await r.json();
+  } catch(e) {
+    newsData = {};
+  }
+
+  curYear = TODAY.getFullYear();
+  curMonth = TODAY.getMonth();
+  renderCal();
+  checkAndFire();
+  updateDot();
+  updateFooter();
+  initSelects();
+  setInterval(() => { checkAndFire(); updateDot(); }, 60000);
+}
+
+function initSelects() {
+  const hs = document.getElementById('hourSel');
+  const ms = document.getElementById('minSel');
+  for (let h = 0; h <= 11; h++) {
+    const o = document.createElement('option');
+    o.value = h; o.textContent = String(h).padStart(2,'0');
+    hs.appendChild(o);
+  }
+  for (let m = 0; m < 60; m += 5) {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = String(m).padStart(2,'0');
+    ms.appendChild(o);
+  }
+  const t = getAlertTime();
+  hs.value = t.hour; ms.value = t.minute;
+}
+
+// ─── CALENDAR ─────────────────────────────────────────────────────
+function renderCal() {
+  document.getElementById('monthLabel').textContent = `${curYear}년 ${curMonth+1}월`;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  const firstDow = new Date(curYear, curMonth, 1).getDay();
+  const lastDay = new Date(curYear, curMonth+1, 0).getDate();
+  const prevLast = new Date(curYear, curMonth, 0).getDate();
+
+  const cells = [];
+  for (let i = firstDow-1; i >= 0; i--)
+    cells.push({ d: prevLast-i, m: curMonth-1, y: curYear, other: true });
+  for (let d = 1; d <= lastDay; d++)
+    cells.push({ d, m: curMonth, y: curYear, other: false });
+  while (cells.length < 42)
+    cells.push({ d: cells.length - firstDow - lastDay + 1, m: curMonth+1, y: curYear, other: true });
+
+  cells.forEach(c => {
+    const cellDate = new Date(c.y, c.m, c.d);
+    const ds = fmtDate(cellDate);
+    const dow = cellDate.getDay();
+    const isToday = ds === todayStr;
+    const hasNews = !c.other && !!newsData[ds];
+
+    const el = document.createElement('div');
+    el.className = 'day-cell' +
+      (c.other ? ' other-month' : '') +
+      (isToday ? ' today' : '') +
+      (dow === 0 ? ' sunday' : '') +
+      (dow === 6 ? ' saturday' : '');
+
+    const num = document.createElement('div');
+    num.className = 'day-num';
+    num.textContent = c.d;
+    el.appendChild(num);
+
+    if (hasNews) {
+      const dot = document.createElement('div');
+      dot.className = 'news-dot';
+      el.appendChild(dot);
+    }
+
+    if (!c.other) {
+      el.onclick = () => {
+        if (newsData[ds]) openNewsModal(ds);
+        else showToast('이 날짜의 뉴스가 없습니다');
+      };
+    }
+    grid.appendChild(el);
+  });
+}
+
+function changeMonth(dir) {
+  curMonth += dir;
+  if (curMonth > 11) { curMonth = 0; curYear++; }
+  if (curMonth < 0) { curMonth = 11; curYear--; }
+  renderCal();
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('bellPanel').classList.remove('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+function closeAll() {
+  closeSidebar();
+  document.getElementById('bellPanel').classList.remove('open');
+}
+document.getElementById('menuBtn').onclick = openSidebar;
+
+// ─── BELL PANEL ───────────────────────────────────────────────────
+function renderBellPanel() {
+  const list = document.getElementById('notifList');
+  list.innerHTML = '';
+
+  const dates = Object.keys(newsData)
+    .filter(d => d <= todayStr)
+    .sort().reverse().slice(0, 7);
+
+  if (!dates.length) {
+    list.innerHTML = '<div class="notif-empty">아직 알림이 없습니다</div>';
+    return;
+  }
+
+  const hist = getHistory();
+  dates.forEach(ds => {
+    const notif = hist.find(n => n.date === ds);
+    const unread = notif && !notif.read;
+    const news = newsData[ds];
+    const preview = (news.trend || '').substring(0, 85);
+
+    const item = document.createElement('div');
+    item.className = 'notif-item' + (unread ? ' unread' : '');
+    item.innerHTML = `
+      <div class="notif-date">📅 ${fmtDisplay(ds)}</div>
+      <div class="notif-preview">📰 ${preview}…</div>
+    `;
+    item.onclick = () => {
+      // mark as read
+      const h = getHistory();
+      const idx = h.findIndex(n => n.date === ds);
+      if (idx >= 0) h[idx].read = true;
+      saveHistory(h);
+      document.getElementById('bellPanel').classList.remove('open');
+      updateDot();
+      openNewsModal(ds);
+    };
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('bellBtn').onclick = () => {
+  const panel = document.getElementById('bellPanel');
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+  } else {
+    renderBellPanel();
+    panel.classList.add('open');
+    closeSidebar();
+  }
+};
+
+// Close bell panel on outside tap
+document.addEventListener('click', e => {
+  const panel = document.getElementById('bellPanel');
+  const btn = document.getElementById('bellBtn');
+  if (panel.classList.contains('open') && !panel.contains(e.target) && !btn.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+// ─── TIME MODAL ───────────────────────────────────────────────────
+function openTimeModal() {
+  closeSidebar();
+  const t = getAlertTime();
+  document.getElementById('hourSel').value = t.hour;
+  document.getElementById('minSel').value = t.minute;
+  document.getElementById('timeModal').classList.remove('hidden');
+}
+function closeTimeModal() {
+  document.getElementById('timeModal').classList.add('hidden');
+}
+function saveAlertTime() {
+  const h = +document.getElementById('hourSel').value;
+  const m = +document.getElementById('minSel').value;
+  localStorage.setItem('alertTime', JSON.stringify({ hour: h, minute: m }));
+
+  // If new time hasn't arrived yet today, remove today's fired entry so it re-fires
+  const now = new Date();
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  if (h * 60 + m > nowM) {
+    const hist = getHistory().filter(n => n.date !== todayStr);
+    saveHistory(hist);
+    document.getElementById('bellDot').classList.add('hidden');
+  }
+
+  closeTimeModal();
+  updateFooter();
+  showToast(`알림 시간이 오전 ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}로 설정되었습니다`);
+}
+
+// ─── NEWS MODAL ───────────────────────────────────────────────────
+function openNewsModal(ds) {
+  const news = newsData[ds];
+  if (!news) return;
+
+  document.getElementById('newsDateLbl').textContent = fmtDisplay(ds);
+  document.getElementById('newsCats').innerHTML = `
+    <div class="cat-card cat-trend">
+      <div class="cat-head">🔥 트렌드</div>
+      <div class="cat-body">${news.trend || '데이터 없음'}</div>
+    </div>
+    <div class="cat-card cat-social">
+      <div class="cat-head">📊 사회/경제</div>
+      <div class="cat-body">${news.social_economy || '데이터 없음'}</div>
+    </div>
+    <div class="cat-card cat-it">
+      <div class="cat-head">💻 IT</div>
+      <div class="cat-body">${news.it || '데이터 없음'}</div>
+    </div>
+    <div class="cat-card cat-intl">
+      <div class="cat-head">🌍 해외뉴스</div>
+      <div class="cat-body">${news.international || '데이터 없음'}</div>
+    </div>
+  `;
+  document.getElementById('newsModal').classList.remove('hidden');
+}
+function closeNewsModal() {
+  document.getElementById('newsModal').classList.add('hidden');
+}
+
+// ─── START ────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

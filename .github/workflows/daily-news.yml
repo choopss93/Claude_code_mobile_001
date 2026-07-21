@@ -1,0 +1,123 @@
+name: 일일 뉴스 업데이트
+
+on:
+  schedule:
+    # 매일 오전 6시 KST (= 전날 21:00 UTC)
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: gh-pages 브랜치 체크아웃
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: feedparser 설치
+        run: pip install feedparser requests
+
+      - name: 뉴스 데이터 업데이트
+        run: |
+          python3 - <<'PYEOF'
+          import feedparser, json, os, re
+          from datetime import datetime, timezone, timedelta
+
+          KST = timezone(timedelta(hours=9))
+          today = datetime.now(KST).strftime('%Y-%m-%d')
+          NEWS_FILE = 'news-data.json'
+
+          SOURCES = {
+              'trend': [
+                  'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko',
+                  'https://www.yonhapnewstv.co.kr/browse/feed/',
+              ],
+              'social_economy': [
+                  'https://www.yna.co.kr/rss/economy.xml',
+                  'https://rss.hankyung.com/economy.xml',
+              ],
+              'it': [
+                  'https://techcrunch.com/feed/',
+                  'https://www.theverge.com/rss/index.xml',
+              ],
+              'international': [
+                  'http://feeds.bbci.co.uk/news/world/rss.xml',
+                  'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+              ]
+          }
+
+          SAMPLE = {
+              'trend': '오늘의 주요 트렌드 뉴스를 불러오는 중 오류가 발생했습니다. RSS 피드 설정을 확인해주세요.',
+              'social_economy': '사회/경제 뉴스를 불러오는 중 오류가 발생했습니다.',
+              'it': 'IT 뉴스를 불러오는 중 오류가 발생했습니다.',
+              'international': '해외 뉴스를 불러오는 중 오류가 발생했습니다.'
+          }
+
+          def clean(text):
+              text = re.sub(r'<[^>]+>', '', text or '')
+              text = re.sub(r'\s+', ' ', text).strip()
+              return text[:300]
+
+          def fetch(urls, n=4):
+              items = []
+              for url in urls:
+                  try:
+                      feed = feedparser.parse(url, request_headers={'User-Agent': 'Mozilla/5.0'})
+                      for e in feed.entries[:n]:
+                          t = clean(e.get('title',''))
+                          s = clean(e.get('summary',''))
+                          if t:
+                              items.append(t + ('. ' + s[:80] if s and s != t else ''))
+                      if len(items) >= n:
+                          break
+                  except Exception as ex:
+                      print(f'  Warning: {url} -> {ex}')
+              return items[:n]
+
+          data = {}
+          if os.path.exists(NEWS_FILE):
+              with open(NEWS_FILE, 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+
+          if today in data:
+              print(f'{today} 뉴스가 이미 있습니다. 건너뜁니다.')
+          else:
+              print(f'{today} 뉴스 수집 시작...')
+              entry = {}
+              for cat, urls in SOURCES.items():
+                  print(f'  [{cat}] 수집 중...')
+                  headlines = fetch(urls)
+                  if headlines:
+                      entry[cat] = ' / '.join(headlines)
+                      print(f'  [{cat}] {len(headlines)}개 헤드라인 수집 완료')
+                  else:
+                      entry[cat] = SAMPLE[cat]
+                      print(f'  [{cat}] 수집 실패 - 기본 메시지 사용')
+              data[today] = entry
+
+              # 90일치만 유지
+              cutoff = (datetime.now(KST) - timedelta(days=90)).strftime('%Y-%m-%d')
+              data = {k: v for k, v in data.items() if k >= cutoff}
+
+              with open(NEWS_FILE, 'w', encoding='utf-8') as f:
+                  json.dump(data, f, ensure_ascii=False, indent=2)
+              print(f'{today} 뉴스 저장 완료!')
+          PYEOF
+
+      - name: 변경사항 커밋 & 푸시
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add news-data.json
+          git diff --staged --quiet || git commit -m "📰 뉴스 업데이트: $(TZ='Asia/Seoul' date +%Y-%m-%d)"
+          git push
