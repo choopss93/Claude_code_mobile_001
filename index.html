@@ -121,9 +121,9 @@
   ol{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
   li.row{
     display:grid;
-    grid-template-columns:32px 26px 1fr auto;
+    grid-template-columns:30px 24px 1fr auto;
     align-items:center;
-    gap:10px;
+    gap:8px;
     background:var(--surface);
     border:1px solid var(--line);
     border-radius:var(--radius);
@@ -164,13 +164,14 @@
   .song .t{font-size:15px;font-weight:500;overflow-wrap:anywhere}
   .song .a{font-size:12.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 
-  .nudge{display:flex;gap:2px;flex:none}
+  .nudge{display:flex;gap:0;flex:none}
   .nudge button{
-    width:30px;height:30px;padding:0;
+    width:28px;height:30px;padding:0;
     display:flex;align-items:center;justify-content:center;
     border:1px solid transparent;border-radius:7px;
     background:none;color:var(--muted);cursor:pointer;
   }
+  .nudge button.edge{color:var(--faint)}
   .nudge button:hover:not(:disabled){background:var(--surface-2);color:var(--ink)}
   .nudge button:disabled{opacity:.25;cursor:default}
   .nudge svg{display:block}
@@ -215,7 +216,7 @@
   <ol id="list" aria-label="노래 순서 목록"></ol>
 
   <footer>
-    <b>44곡</b> · 드래그로 옮기거나, 행을 선택하고 <kbd>↑</kbd> <kbd>↓</kbd> 로도 옮길 수 있어요.
+    <b>44곡</b> · 드래그로 옮기거나, 행을 선택하고 <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Home</kbd> <kbd>End</kbd> 로도 옮길 수 있어요.
     바꾼 순서는 이 기기에 자동 저장되고, <b>링크를 복사해 보내야</b> 상대에게 전달됩니다.
   </footer>
 </div>
@@ -307,19 +308,39 @@
       '<circle cx="4" cy="8" r="1.5"/><circle cx="10" cy="8" r="1.5"/>' +
       '<circle cx="4" cy="13" r="1.5"/><circle cx="10" cy="13" r="1.5"/></svg>';
   }
-  function arrowSvg(up){
+  function svg(paths){
     return '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" ' +
       'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      (up ? '<path d="M3 9l4-4 4 4"/>' : '<path d="M3 5l4 4 4-4"/>') + '</svg>';
+      paths + '</svg>';
   }
 
-  function nudgeBtn(songIndex, dir, label){
+  // key, label, icon, and where in the list the button lands the row.
+  var MOVES = [
+    { key:"top",    label:"맨 위로",   edge:true,
+      icon:svg('<path d="M3 2.5h8"/><path d="M7 11.5V5.5"/><path d="M4.4 8L7 5.4 9.6 8"/>') },
+    { key:"up",     label:"위로",      edge:false,
+      icon:svg('<path d="M3 9l4-4 4 4"/>') },
+    { key:"down",   label:"아래로",    edge:false,
+      icon:svg('<path d="M3 5l4 4 4-4"/>') },
+    { key:"bottom", label:"맨 아래로", edge:true,
+      icon:svg('<path d="M3 11.5h8"/><path d="M7 2.5v6"/><path d="M4.4 6L7 8.6 9.6 6"/>') }
+  ];
+
+  function targetIndex(key, from, len){
+    if (key === "top") return 0;
+    if (key === "bottom") return len - 1;
+    return key === "up" ? from - 1 : from + 1;
+  }
+
+  function nudgeBtn(songIndex, spec){
     var b = document.createElement("button");
     b.type = "button";
-    b.dataset.dir = String(dir);
-    b.setAttribute("aria-label", SONGS[songIndex].main + " " + label);
-    b.innerHTML = arrowSvg(dir < 0);
-    b.addEventListener("click", function(e){ e.preventDefault(); move(songIndex, dir); });
+    b.className = spec.edge ? "edge" : "";
+    b.dataset.move = spec.key;
+    b.setAttribute("aria-label", SONGS[songIndex].main + " " + spec.label);
+    b.title = spec.label;
+    b.innerHTML = spec.icon;
+    b.addEventListener("click", function(e){ e.preventDefault(); move(songIndex, spec.key); });
     return b;
   }
 
@@ -357,8 +378,7 @@
 
     var nudge = document.createElement("div");
     nudge.className = "nudge";
-    nudge.appendChild(nudgeBtn(songIndex, -1, "위로"));
-    nudge.appendChild(nudgeBtn(songIndex, 1, "아래로"));
+    MOVES.forEach(function(spec){ nudge.appendChild(nudgeBtn(songIndex, spec)); });
     li.appendChild(nudge);
 
     return li;
@@ -380,8 +400,12 @@
     var rows = listEl.children;
     for (var i = 0; i < rows.length; i++){
       rows[i].querySelector(".rank").textContent = i + 1;
-      rows[i].querySelector('.nudge button[data-dir="-1"]').disabled = (i === 0);
-      rows[i].querySelector('.nudge button[data-dir="1"]').disabled = (i === rows.length - 1);
+      var atTop = (i === 0), atEnd = (i === rows.length - 1);
+      var group = rows[i].querySelector(".nudge");
+      group.querySelector('[data-move="top"]').disabled = atTop;
+      group.querySelector('[data-move="up"]').disabled = atTop;
+      group.querySelector('[data-move="down"]').disabled = atEnd;
+      group.querySelector('[data-move="bottom"]').disabled = atEnd;
     }
   }
 
@@ -404,17 +428,24 @@
 
   /* ---------------- mutations ---------------- */
 
-  function move(songIndex, dir){
+  function move(songIndex, key){
     var from = order.indexOf(songIndex);
-    var to = from + dir;
-    if (from < 0 || to < 0 || to >= order.length) return;
+    if (from < 0) return;
+    var to = targetIndex(key, from, order.length);
+    if (to < 0 || to >= order.length || to === from) return;
     order.splice(to, 0, order.splice(from, 1)[0]);
     flashIndex = songIndex;
     render();
     var el = listEl.querySelector('li.row[data-song="' + songIndex + '"]');
     if (el){
-      var btn = el.querySelector('.nudge button[data-dir="' + dir + '"]');
+      var btn = el.querySelector('.nudge button[data-move="' + key + '"]');
       if (btn && !btn.disabled) btn.focus(); else el.focus();
+      // A jump to either end lands off-screen; bring the row into view so the
+      // press is visibly confirmed.
+      if (key === "top" || key === "bottom"){
+        var smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        el.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+      }
     }
     markChanged();
   }
@@ -428,9 +459,11 @@
   listEl.addEventListener("keydown", function(e){
     var li = e.target.closest ? e.target.closest("li.row") : null;
     if (!li || !listEl.contains(li)) return;
-    if (e.key === "ArrowUp" || e.key === "ArrowDown"){
+    var KEYS = { ArrowUp:"up", ArrowDown:"down", Home:"top", End:"bottom" };
+    var key = KEYS[e.key];
+    if (key){
       e.preventDefault();
-      move(Number(li.dataset.song), e.key === "ArrowUp" ? -1 : 1);
+      move(Number(li.dataset.song), key);
       var again = listEl.querySelector('li.row[data-song="' + li.dataset.song + '"]');
       if (again) again.focus();
     }
